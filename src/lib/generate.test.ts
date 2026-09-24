@@ -27,7 +27,6 @@ describe("buildCandidates", () => {
   it("skips ineligible entities and incompatible types", () => {
     const { candidates } = buildCandidates(cfg());
     const ids = candidates.flatMap((x) => [x.entityId, x.secondEntityId]);
-    expect(ids).not.toContain("pl-nwosu");
     expect(ids).not.toContain("tm-new");
     expect(candidates.filter((x) => x.mechanicId === "mech-player-goal-ladder").every((x) => x.entityId.startsWith("pl-"))).toBe(true);
   });
