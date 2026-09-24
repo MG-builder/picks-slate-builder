@@ -7,15 +7,19 @@ export const ENTITY_TYPES: EntityType[] = ["player", "team", "league"];
 /** Ordered narrowest to widest. A ceiling covers every kind at or before it. */
 export const WINDOW_KINDS: WindowKind[] = ["gameweek", "fortnight", "season"];
 export const PHASES: Phase[] = [1, 2, 3];
+export type EntityCount = 1 | 2 | 3;
+export const ENTITY_COUNTS: EntityCount[] = [1, 2, 3];
 
 export interface Mechanic {
   id: string;
   name: string;
-  /** Uses {a}, {b}, {line} and {window} placeholders. */
+  /** Uses {a}, {b}, {c}, {line} and {window} placeholders. */
   questionShape: string;
   allowedEntityTypes: EntityType[];
-  /** 2 for head-to-head or "both" mechanics that take an unordered pair. */
-  entityCount: 1 | 2;
+  /** 2 or 3 for mechanics that take an unordered group of entities from one league. */
+  entityCount: EntityCount;
+  /** Restricts candidates to entities in these leagues. Empty means any league. */
+  leagues: string[];
   sourceMarket: string;
   windowCeiling: WindowKind;
   tieRule: string;
@@ -48,8 +52,8 @@ export interface MarketWindow {
 export interface RuleConfig {
   slateSize: number;
   livePhases: Phase[];
-  /** Maximum unordered pairs generated per two-entity mechanic. */
-  pairCap: number;
+  /** Maximum groups (pairs or trios) generated per multi-entity mechanic. */
+  groupCap: number;
 }
 
 export interface Config {
@@ -63,8 +67,8 @@ export interface SlateMarket {
   id: string;
   mechanicId: string;
   entityId: string;
-  /** Second entity for two-entity mechanics, otherwise null. */
-  secondEntityId: string | null;
+  /** Further entities for pair or trio mechanics, otherwise empty. */
+  otherEntityIds: string[];
   line: number | null;
   windowId: string;
   status: MarketStatus;

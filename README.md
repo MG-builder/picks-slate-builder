@@ -47,10 +47,11 @@ clear the site's localStorage (removes everything).
 
 Two steps, deliberately nothing more:
 
-1. **Candidates**: for each mechanic, every eligible entity whose type the mechanic allows, times
-   each ladder line (or once if the mechanic has no lines). Two-entity mechanics use unordered
-   pairs of entities from the same league (two leagues can always be paired), capped at
-   `pairCap` per mechanic. When the cap bites, Generate says how many pairs were left out.
+1. **Candidates**: for each mechanic, every eligible entity whose type the mechanic allows (and
+   whose league is in the mechanic's `leagues`, if set), times each ladder line (or once if the
+   mechanic has no lines). Mechanics with `entityCount` 2 or 3 use unordered pairs or trios of
+   entities from the same league (a group made only of leagues can always be formed), capped at
+   `groupCap` per mechanic. When the cap bites, Generate says how many groups were left out.
 2. **Eligibility filter**: drop a candidate if the mechanic's window ceiling cannot cover the
    selected window (gameweek < fortnight < season), or if its phase is not in `livePhases`.
 
@@ -66,10 +67,16 @@ Two steps, deliberately nothing more:
 
 ## Additions to the brief's data model
 
-- `Mechanic.entityCount` (1 or 2): marks the mechanics that take a pair of entities.
-- `SlateMarket.secondEntityId`: the second entity for pair mechanics, otherwise null.
-- `RuleConfig.pairCap`: the cap on pairs per two-entity mechanic, so it is configurable rather
+- `Mechanic.entityCount` (1, 2 or 3): marks the mechanics that take a pair or trio of entities.
+- `Mechanic.leagues`: optional league restriction, e.g. "All three players to score" is Premier
+  League only. Empty means any league.
+- `SlateMarket.otherEntityIds`: the further entities for pair or trio mechanics, otherwise empty.
+  `entityId` is still the first entity.
+- `RuleConfig.groupCap`: the cap on pairs or trios per mechanic, so it is configurable rather
   than hardcoded.
+
+Data saved by earlier versions of the prototype (`pairCap`, `secondEntityId`) is upgraded when
+it is loaded.
 - The spec's `Window` type is called `MarketWindow` in code to avoid clashing with the browser's
   global `Window` type.
 

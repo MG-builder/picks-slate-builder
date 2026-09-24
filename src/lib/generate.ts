@@ -5,11 +5,11 @@ export interface Candidate {
   key: string;
   mechanicId: string;
   entityId: string;
-  secondEntityId: string | null;
+  otherEntityIds: string[];
   line: number | null;
 }
 
-export interface PairCapNote {
+export interface GroupCapNote {
   mechanicId: string;
   available: number;
   generated: number;
@@ -28,7 +28,7 @@ export interface PipelineResult {
   droppedByCeiling: number;
   droppedByPhase: number;
   droppedByBoth: number;
-  pairCaps: PairCapNote[];
+  groupCaps: GroupCapNote[];
   breakdown: MechanicBreakdown[];
 }
 
@@ -36,57 +36,66 @@ export function ceilingCovers(ceiling: WindowKind, kind: WindowKind): boolean {
   return WINDOW_KINDS.indexOf(ceiling) >= WINDOW_KINDS.indexOf(kind);
 }
 
-/** Unordered pairs from the same league. Two leagues can always be paired with each other. */
-function pairsFrom(pool: Entity[]): [Entity, Entity][] {
-  const pairs: [Entity, Entity][] = [];
-  for (let i = 0; i < pool.length; i++) {
-    for (let j = i + 1; j < pool.length; j++) {
-      const a = pool[i];
-      const b = pool[j];
-      const bothLeagues = a.type === "league" && b.type === "league";
-      if (bothLeagues || a.league === b.league) pairs.push([a, b]);
+/**
+ * Unordered groups of `size` entities, all from the same league.
+ * Leagues are the exception: a group made only of leagues can always be formed.
+ */
+function groupsFrom(pool: Entity[], size: number): Entity[][] {
+  const groups: Entity[][] = [];
+  const pick = (start: number, acc: Entity[]) => {
+    if (acc.length === size) {
+      const allLeagues = acc.every((e) => e.type === "league");
+      if (allLeagues || acc.every((e) => e.league === acc[0].league)) groups.push(acc);
+      return;
     }
-  }
-  return pairs;
+    for (let i = start; i < pool.length; i++) pick(i + 1, [...acc, pool[i]]);
+  };
+  pick(0, []);
+  return groups;
 }
 
 /** Step 1: cross product of mechanics, compatible eligible entities and lines. */
-export function buildCandidates(config: Config): { candidates: Candidate[]; pairCaps: PairCapNote[] } {
+export function buildCandidates(config: Config): { candidates: Candidate[]; groupCaps: GroupCapNote[] } {
   const candidates: Candidate[] = [];
-  const pairCaps: PairCapNote[] = [];
+  const groupCaps: GroupCapNote[] = [];
 
   for (const m of config.mechanics) {
-    const pool = config.entities.filter((e) => e.eligible && m.allowedEntityTypes.includes(e.type));
-    let groups: [Entity, Entity | null][];
-    if (m.entityCount === 2) {
-      const all = pairsFrom(pool);
-      const capped = all.slice(0, Math.max(0, config.rules.pairCap));
+    const pool = config.entities.filter(
+      (e) =>
+        e.eligible &&
+        m.allowedEntityTypes.includes(e.type) &&
+        (m.leagues.length === 0 || m.leagues.includes(e.league)),
+    );
+    let groups: Entity[][];
+    if (m.entityCount > 1) {
+      const all = groupsFrom(pool, m.entityCount);
+      const capped = all.slice(0, Math.max(0, config.rules.groupCap));
       if (capped.length < all.length) {
-        pairCaps.push({ mechanicId: m.id, available: all.length, generated: capped.length });
+        groupCaps.push({ mechanicId: m.id, available: all.length, generated: capped.length });
       }
       groups = capped;
     } else {
-      groups = pool.map((e) => [e, null]);
+      groups = pool.map((e) => [e]);
     }
     const lines: (number | null)[] = m.lines.length ? m.lines : [null];
-    for (const [a, b] of groups) {
+    for (const [a, ...others] of groups) {
       for (const line of lines) {
         candidates.push({
-          key: [m.id, a.id, b?.id ?? "", line ?? ""].join("|"),
+          key: [m.id, a.id, ...others.map((o) => o.id), line ?? ""].join("|"),
           mechanicId: m.id,
           entityId: a.id,
-          secondEntityId: b?.id ?? null,
+          otherEntityIds: others.map((o) => o.id),
           line,
         });
       }
     }
   }
-  return { candidates, pairCaps };
+  return { candidates, groupCaps };
 }
 
 /** Step 1 then step 2 (eligibility filter). Nothing else, deliberately. */
 export function runPipeline(config: Config, window: MarketWindow): PipelineResult {
-  const { candidates, pairCaps } = buildCandidates(config);
+  const { candidates, groupCaps } = buildCandidates(config);
   const mechanics = new Map<string, Mechanic>(config.mechanics.map((m) => [m.id, m]));
 
   const eligible: Candidate[] = [];
@@ -111,7 +120,7 @@ export function runPipeline(config: Config, window: MarketWindow): PipelineResul
     phaseLive: config.rules.livePhases.includes(m.phase),
   }));
 
-  return { candidates, eligible, droppedByCeiling, droppedByPhase, droppedByBoth, pairCaps, breakdown };
+  return { candidates, eligible, droppedByCeiling, droppedByPhase, droppedByBoth, groupCaps, breakdown };
 }
 
 export function droppedSummary(r: PipelineResult, window: MarketWindow): string {
@@ -135,7 +144,7 @@ export function createSlate(window: MarketWindow, hook: string, eligible: Candid
       id: `${id}-${i + 1}`,
       mechanicId: c.mechanicId,
       entityId: c.entityId,
-      secondEntityId: c.secondEntityId,
+      otherEntityIds: c.otherEntityIds,
       line: c.line,
       windowId: window.id,
       status: "pending",

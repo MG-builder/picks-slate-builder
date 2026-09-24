@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildCandidates, ceilingCovers, runPipeline } from "./generate";
-import { seedConfig } from "./storage";
+import { loadConfig, loadDraft, seedConfig } from "./storage";
 import type { Config } from "../types";
 
 const cfg = (): Config => seedConfig();
@@ -26,26 +26,39 @@ describe("buildCandidates", () => {
 
   it("skips ineligible entities and incompatible types", () => {
     const { candidates } = buildCandidates(cfg());
-    const ids = candidates.flatMap((x) => [x.entityId, x.secondEntityId]);
+    const ids = candidates.flatMap((x) => [x.entityId, ...x.otherEntityIds]);
     expect(ids).not.toContain("tm-new");
     expect(candidates.filter((x) => x.mechanicId === "mech-player-goal-ladder").every((x) => x.entityId.startsWith("pl-"))).toBe(true);
   });
 
   it("pairs only same-league entities, unordered, and reports the cap", () => {
     const c = cfg();
-    c.rules.pairCap = 1000;
-    const { candidates, pairCaps } = buildCandidates(c);
+    c.rules.groupCap = 1000;
+    const { candidates, groupCaps } = buildCandidates(c);
     const byId = new Map(c.entities.map((e) => [e.id, e]));
     const pairs = candidates.filter((x) => x.mechanicId === "mech-both-score");
-    expect(pairs.every((p) => byId.get(p.entityId)!.league === byId.get(p.secondEntityId!)!.league)).toBe(true);
-    const keys = pairs.map((p) => [p.entityId, p.secondEntityId].sort().join("+"));
+    expect(pairs.every((p) => byId.get(p.entityId)!.league === byId.get(p.otherEntityIds[0])!.league)).toBe(true);
+    const keys = pairs.map((p) => [p.entityId, ...p.otherEntityIds].sort().join("+"));
     expect(new Set(keys).size).toBe(keys.length);
-    expect(pairCaps).toHaveLength(0);
+    expect(groupCaps).toHaveLength(0);
 
-    c.rules.pairCap = 2;
+    c.rules.groupCap = 2;
     const capped = buildCandidates(c);
     expect(capped.candidates.filter((x) => x.mechanicId === "mech-both-score")).toHaveLength(2);
-    expect(capped.pairCaps.find((p) => p.mechanicId === "mech-both-score")).toMatchObject({ generated: 2, available: pairs.length });
+    expect(capped.groupCaps.find((p) => p.mechanicId === "mech-both-score")).toMatchObject({ generated: 2, available: pairs.length });
+  });
+
+  it("builds Premier League trios only for the all three to score mechanic", () => {
+    const c = cfg();
+    const byId = new Map(c.entities.map((e) => [e.id, e]));
+    const epl = c.entities.filter((e) => e.type === "player" && e.eligible && e.league === "Premier League").length;
+    const trios = buildCandidates(c).candidates.filter((x) => x.mechanicId === "mech-all-three-score");
+    const choose3 = (epl * (epl - 1) * (epl - 2)) / 6;
+    expect(trios).toHaveLength(Math.min(choose3, c.rules.groupCap));
+    for (const t of trios) {
+      expect(t.otherEntityIds).toHaveLength(2);
+      expect([t.entityId, ...t.otherEntityIds].every((id) => byId.get(id)!.league === "Premier League")).toBe(true);
+    }
   });
 
   it("pairs two leagues for league vs league", () => {
@@ -69,5 +82,27 @@ describe("runPipeline", () => {
     expect(runPipeline(c, gw).eligible.some((x) => x.mechanicId === "mech-any-hattrick")).toBe(false);
     c.rules.livePhases = [1, 2, 3];
     expect(runPipeline(c, gw).eligible.some((x) => x.mechanicId === "mech-any-hattrick")).toBe(true);
+  });
+});
+
+describe("storage migration", () => {
+  it("upgrades config and slates saved before groups existed", () => {
+    const store = new Map<string, string>();
+    globalThis.localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    } as Storage;
+    const old = cfg() as unknown as Record<string, any>;
+    old.rules = { slateSize: 12, livePhases: [1, 2], pairCap: 7 };
+    old.mechanics = old.mechanics.map(({ leagues: _l, ...m }: Record<string, unknown>) => m);
+    store.set("psb.v1.config", JSON.stringify(old));
+    const market = { id: "m1", mechanicId: "mech-both-score", entityId: "pl-haaland", secondEntityId: "pl-isak" };
+    store.set("psb.v1.draft", JSON.stringify({ readOnly: false, dirty: false, slate: { id: "s1", markets: [market] } }));
+
+    const c = loadConfig();
+    expect(c.rules.groupCap).toBe(7);
+    expect(c.mechanics.every((m) => Array.isArray(m.leagues))).toBe(true);
+    expect(loadDraft()!.slate.markets[0].otherEntityIds).toEqual(["pl-isak"]);
   });
 });

@@ -1,6 +1,6 @@
 import type { Entity } from "../types";
 
-const EPL = "Premier League";
+export const EPL = "Premier League";
 const BRA = "Brasileirao Serie A";
 
 export const seedEntities: Entity[] = [
@@ -21,13 +21,12 @@ export const seedEntities: Entity[] = [
   { id: "tm-sao", name: "Sao Paulo", type: "team", league: BRA, feedId: "SR:competitor:1981", countryRelevance: ["Brazil"], eligible: true },
 
   // Players. Leagues other than the two above only matter for pairing: pair mechanics
-  // only pair players from the same league, so Kane and Osimhen appear in single-player markets only.
+  // only group players from the same league, so Kane and Osimhen appear in single-player markets only.
   { id: "pl-haaland", name: "Erling Haaland", type: "player", league: EPL, feedId: "SR:player:901101", countryRelevance: ["all"], eligible: true },
   { id: "pl-isak", name: "Alexander Isak", type: "player", league: EPL, feedId: "SR:player:901102", countryRelevance: ["all"], eligible: true },
   { id: "pl-joaopedro", name: "João Pedro", type: "player", league: EPL, feedId: "SR:player:901103", countryRelevance: ["Brazil", "all"], eligible: true },
   { id: "pl-bruno", name: "Bruno Fernandes", type: "player", league: EPL, feedId: "SR:player:901104", countryRelevance: ["all"], eligible: true },
   { id: "pl-semenyo", name: "Antoine Semenyo", type: "player", league: EPL, feedId: "SR:player:901105", countryRelevance: ["Ghana"], eligible: true },
-  { id: "pl-salah", name: "Mohamed Salah", type: "player", league: EPL, feedId: "SR:player:901106", countryRelevance: ["all"], eligible: true },
   { id: "pl-mbappe", name: "Kylian Mbappé", type: "player", league: "La Liga", feedId: "SR:player:903301", countryRelevance: ["all"], eligible: true },
   { id: "pl-yamal", name: "Lamine Yamal", type: "player", league: "La Liga", feedId: "SR:player:903302", countryRelevance: ["all"], eligible: true },
   { id: "pl-raphinha", name: "Raphinha", type: "player", league: "La Liga", feedId: "SR:player:903303", countryRelevance: ["Brazil"], eligible: true },

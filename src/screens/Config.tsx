@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { Config, Entity, EntityType, Mechanic, MarketWindow, Phase, WindowKind } from "../types";
-import { ENTITY_TYPES, PHASES, WINDOW_KINDS } from "../types";
+import type { Config, Entity, EntityCount, EntityType, Mechanic, MarketWindow, Phase, WindowKind } from "../types";
+import { ENTITY_COUNTS, ENTITY_TYPES, PHASES, WINDOW_KINDS } from "../types";
 import { seedConfig } from "../lib/storage";
 import { CommitInput, joinList, splitList, splitNumbers } from "../components/inputs";
 
@@ -63,7 +63,7 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
             <table className="grid edit">
               <thead>
                 <tr>
-                  <th>ID</th><th>Name</th><th>Question shape</th><th>Entity types</th><th>Entities</th>
+                  <th>ID</th><th>Name</th><th>Question shape</th><th>Entity types</th><th>Entities</th><th>Leagues</th>
                   <th>Source market</th><th>Ceiling</th><th>Tie rule</th><th>Phase</th><th>Lines</th>
                   <th>Metric</th><th>Operator</th><th />
                 </tr>
@@ -76,7 +76,7 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
                       <td className="mono muted">{m.id}</td>
                       <td><input value={m.name} onChange={(e) => set({ name: e.target.value })} /></td>
                       <td>
-                        <input className="wide" value={m.questionShape} title="Placeholders: {a} {b} {line} {window}"
+                        <input className="wide" value={m.questionShape} title="Placeholders: {a} {b} {c} {line} {window}"
                           onChange={(e) => set({ questionShape: e.target.value })} />
                       </td>
                       <td className="nowrap">
@@ -98,10 +98,16 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
                         ))}
                       </td>
                       <td>
-                        <select value={m.entityCount} onChange={(e) => set({ entityCount: Number(e.target.value) as 1 | 2 })}>
-                          <option value={1}>1</option>
-                          <option value={2}>2 (pair)</option>
+                        <select value={m.entityCount} onChange={(e) => set({ entityCount: Number(e.target.value) as EntityCount })}>
+                          {ENTITY_COUNTS.map((n) => (
+                            <option key={n} value={n}>{n === 1 ? "1" : n === 2 ? "2 (pair)" : `${n} (group)`}</option>
+                          ))}
                         </select>
+                      </td>
+                      <td>
+                        <CommitInput value={joinList(m.leagues)} placeholder="any"
+                          title="Comma separated league names. Empty means any league."
+                          onCommit={(t) => set({ leagues: splitList(t) })} />
                       </td>
                       <td><input value={m.sourceMarket} onChange={(e) => set({ sourceMarket: e.target.value })} /></td>
                       <td>
@@ -138,7 +144,7 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
                 ...config.mechanics,
                 {
                   id: newId("mech"), name: "New mechanic", questionShape: "", allowedEntityTypes: [],
-                  entityCount: 1, sourceMarket: "", windowCeiling: WINDOW_KINDS[0], tieRule: "",
+                  entityCount: 1, leagues: [], sourceMarket: "", windowCeiling: WINDOW_KINDS[0], tieRule: "",
                   phase: PHASES[0], lines: [], metric: "", operator: "",
                 },
               ])
@@ -300,15 +306,15 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
               <td className="muted">Mechanics in other phases are dropped by the eligibility filter.</td>
             </tr>
             <tr>
-              <th>Pair cap</th>
+              <th>Group cap</th>
               <td>
-                <CommitInput className="short" value={String(config.rules.pairCap)}
+                <CommitInput className="short" value={String(config.rules.groupCap)}
                   onCommit={(t) => {
                     const n = parseInt(t, 10);
-                    if (Number.isFinite(n) && n >= 0) onChange({ ...config, rules: { ...config.rules, pairCap: n } });
+                    if (Number.isFinite(n) && n >= 0) onChange({ ...config, rules: { ...config.rules, groupCap: n } });
                   }} />
               </td>
-              <td className="muted">Maximum pairs per two-entity mechanic. Generate reports any pairs left out.</td>
+              <td className="muted">Maximum pairs or trios per multi-entity mechanic. Generate reports any left out.</td>
             </tr>
           </tbody>
         </table>

@@ -26,8 +26,7 @@ export function entityName(lk: Lookup, id: string | null): string {
 }
 
 export function entitiesLabel(lk: Lookup, m: SlateMarket): string {
-  const a = entityName(lk, m.entityId);
-  return m.secondEntityId ? `${a} / ${entityName(lk, m.secondEntityId)}` : a;
+  return [m.entityId, ...m.otherEntityIds].map((id) => entityName(lk, id)).join(" / ");
 }
 
 export function question(lk: Lookup, m: SlateMarket): string {
@@ -35,7 +34,8 @@ export function question(lk: Lookup, m: SlateMarket): string {
   if (!mech) return missing(m.mechanicId);
   return mech.questionShape
     .replaceAll("{a}", entityName(lk, m.entityId))
-    .replaceAll("{b}", entityName(lk, m.secondEntityId))
+    .replaceAll("{b}", entityName(lk, m.otherEntityIds[0] ?? null))
+    .replaceAll("{c}", entityName(lk, m.otherEntityIds[1] ?? null))
     .replaceAll("{line}", m.line == null ? "" : String(m.line))
     .replaceAll("{window}", lk.window(m.windowId)?.label ?? missing(m.windowId));
 }

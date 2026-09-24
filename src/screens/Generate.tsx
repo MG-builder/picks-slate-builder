@@ -69,10 +69,10 @@ export default function GenerateScreen(props: { config: Config; onGenerate: (s: 
         </tbody>
       </table>
       <p className="drop-line">{droppedSummary(result, win)}</p>
-      {result.pairCaps.map((p) => (
+      {result.groupCaps.map((p) => (
         <p key={p.mechanicId} className="warn">
-          Pair cap: {lk.mechanic(p.mechanicId)?.name} generated {p.generated} of {p.available} possible pairs
-          (cap {config.rules.pairCap}, set under Config, Rules).
+          Group cap: {lk.mechanic(p.mechanicId)?.name} generated {p.generated} of {p.available} possible groups
+          (cap {config.rules.groupCap}, set under Config, Rules).
         </p>
       ))}
       {eligible === 0 && <p className="error">No candidates survive the filter for this window.</p>}

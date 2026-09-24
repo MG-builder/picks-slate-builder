@@ -5,9 +5,9 @@ const CSV_COLUMNS = [
   "slateId", "slateCreatedAt", "slateHook",
   "windowId", "windowLabel", "windowKind", "windowOpensAt", "windowClosesAt",
   "marketId", "question",
-  "mechanicId", "mechanicName", "questionShape", "sourceMarket", "windowCeiling", "phase", "tieRule", "metric", "operator",
+  "mechanicId", "mechanicName", "questionShape", "mechanicLeagues", "sourceMarket", "windowCeiling", "phase", "tieRule", "metric", "operator",
   "entityId", "entityName", "entityType", "entityLeague", "entityFeedId",
-  "secondEntityId", "secondEntityName", "secondEntityType", "secondEntityLeague", "secondEntityFeedId",
+  "otherEntityIds", "otherEntityNames", "otherEntityTypes", "otherEntityLeagues", "otherEntityFeedIds",
   "line", "status", "yesPrice", "noPrice", "approver", "decidedAt",
 ] as const;
 
@@ -23,7 +23,8 @@ export function approvedCsv(slate: Slate, lk: Lookup): string {
     .map((m) => {
       const mech = lk.mechanic(m.mechanicId);
       const a = lk.entity(m.entityId);
-      const b = lk.entity(m.secondEntityId);
+      const others = m.otherEntityIds.map((id) => lk.entity(id));
+      const joined = (xs: unknown[]) => xs.map((x) => x ?? "").join("; ");
       const row: Record<(typeof CSV_COLUMNS)[number], unknown> = {
         slateId: slate.id,
         slateCreatedAt: slate.createdAt,
@@ -38,6 +39,7 @@ export function approvedCsv(slate: Slate, lk: Lookup): string {
         mechanicId: m.mechanicId,
         mechanicName: mech?.name ?? missing(m.mechanicId),
         questionShape: mech?.questionShape,
+        mechanicLeagues: mech ? joined(mech.leagues) : "",
         sourceMarket: mech?.sourceMarket,
         windowCeiling: mech?.windowCeiling,
         phase: mech?.phase,
@@ -49,11 +51,11 @@ export function approvedCsv(slate: Slate, lk: Lookup): string {
         entityType: a?.type,
         entityLeague: a?.league,
         entityFeedId: a?.feedId,
-        secondEntityId: m.secondEntityId,
-        secondEntityName: entityName(lk, m.secondEntityId),
-        secondEntityType: b?.type,
-        secondEntityLeague: b?.league,
-        secondEntityFeedId: b?.feedId,
+        otherEntityIds: joined(m.otherEntityIds),
+        otherEntityNames: joined(m.otherEntityIds.map((id) => entityName(lk, id))),
+        otherEntityTypes: joined(others.map((e) => e?.type)),
+        otherEntityLeagues: joined(others.map((e) => e?.league)),
+        otherEntityFeedIds: joined(others.map((e) => e?.feedId)),
         line: m.line,
         status: m.status,
         yesPrice: m.yesPrice,

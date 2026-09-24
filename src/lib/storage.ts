@@ -45,9 +45,39 @@ export function seedConfig(): Config {
   });
 }
 
-export const loadConfig = () => read<Config>(KEYS.config, seedConfig());
+/**
+ * Brings data saved by earlier versions up to date: `pairCap` became `groupCap`,
+ * mechanics gained `leagues`, and `secondEntityId` became `otherEntityIds`.
+ */
+type Legacy<T> = T & Record<string, unknown>;
+
+function migrateConfig(c: Legacy<Config>): Config {
+  const rules = c.rules as Legacy<Config["rules"]>;
+  return {
+    ...c,
+    mechanics: c.mechanics.map((m) => ({ ...m, leagues: m.leagues ?? [] })),
+    rules: { ...rules, groupCap: rules.groupCap ?? (rules.pairCap as number | undefined) ?? 10 },
+  };
+}
+
+function migrateSlate(s: Slate): Slate {
+  return {
+    ...s,
+    markets: s.markets.map((m) => {
+      const legacy = m as Legacy<typeof m>;
+      if (m.otherEntityIds) return m;
+      const second = legacy.secondEntityId as string | null | undefined;
+      return { ...m, otherEntityIds: second ? [second] : [] };
+    }),
+  };
+}
+
+export const loadConfig = () => migrateConfig(read<Legacy<Config>>(KEYS.config, seedConfig() as Legacy<Config>));
 export const saveConfig = (c: Config) => write(KEYS.config, c);
-export const loadSlates = () => read<Slate[]>(KEYS.slates, []);
+export const loadSlates = () => read<Slate[]>(KEYS.slates, []).map(migrateSlate);
 export const saveSlates = (s: Slate[]) => write(KEYS.slates, s);
-export const loadDraft = () => read<Draft | null>(KEYS.draft, null);
+export const loadDraft = () => {
+  const d = read<Draft | null>(KEYS.draft, null);
+  return d ? { ...d, slate: migrateSlate(d.slate) } : null;
+};
 export const saveDraft = (d: Draft | null) => write(KEYS.draft, d);
