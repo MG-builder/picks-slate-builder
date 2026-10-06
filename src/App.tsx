@@ -4,6 +4,7 @@ import {
   type Draft,
   loadConfig, loadDraft, loadSlates, saveConfig, saveDraft, saveSlates,
 } from "./lib/storage";
+import { createSlate, runPipeline } from "./lib/generate";
 import GenerateScreen from "./screens/Generate";
 import ReviewScreen from "./screens/Review";
 import ConfigScreen from "./screens/Config";
@@ -45,6 +46,17 @@ export default function App() {
     if (!okToReplaceDraft()) return;
     setDraft({ slate, readOnly: false, dirty: true });
     setTab("review");
+  };
+
+  /** Rebuilds the open slate's window and hook from the current config, as a new slate. */
+  const onRegenerate = () => {
+    if (!draft) return;
+    const win = config.windows.find((w) => w.id === draft.slate.windowId);
+    if (!win) {
+      setTab("generate");
+      return;
+    }
+    onGenerate(createSlate(win, draft.slate.hook, runPipeline(config, win).eligible));
   };
 
   const onSave = () => {
@@ -90,6 +102,7 @@ export default function App() {
             onSave={onSave}
             onReopen={() => draft && setDraft({ ...draft, readOnly: false })}
             onGoGenerate={() => setTab("generate")}
+            onRegenerate={onRegenerate}
           />
         )}
         {tab === "config" && <ConfigScreen config={config} onChange={setConfig} />}

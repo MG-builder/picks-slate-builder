@@ -22,6 +22,7 @@ export default function ReviewScreen(props: {
   onSave: () => void;
   onReopen: () => void;
   onGoGenerate: () => void;
+  onRegenerate: () => void;
 }) {
   const { config, draft } = props;
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -56,6 +57,12 @@ export default function ReviewScreen(props: {
   }
 
   const { slate, readOnly } = draft;
+  const stale = markets.filter(
+    (m) =>
+      !lk.mechanic(m.mechanicId) ||
+      !lk.window(m.windowId) ||
+      [m.entityId, ...m.otherEntityIds].some((id) => !lk.entity(id)),
+  ).length;
   const win = lk.window(slate.windowId);
   const counts = { approved: 0, rejected: 0, pending: 0 };
   for (const m of markets) counts[m.status]++;
@@ -138,6 +145,18 @@ export default function ReviewScreen(props: {
           )}
         </div>
       </div>
+
+      {stale > 0 && (
+        <div className="stale-banner">
+          <strong>
+            {stale} of {markets.length} markets refer to players, mechanics or a window no longer in config.
+          </strong>{" "}
+          This slate was generated from an older config. Slates are never regenerated automatically.
+          <button className="primary" onClick={props.onRegenerate}>
+            {lk.window(slate.windowId) ? "Generate a new slate from current config" : "Go to Generate"}
+          </button>
+        </div>
+      )}
 
       <label className="hook">
         Hook
