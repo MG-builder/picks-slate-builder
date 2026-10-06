@@ -4,7 +4,21 @@ import { loadConfig, loadDraft, seedConfig } from "./storage";
 import { makeLookup, question } from "./format";
 import type { Config } from "../types";
 
-const cfg = (): Config => seedConfig();
+/**
+ * Pipeline tests use a fixed baseline rather than the seed defaults, so changing the defaults
+ * does not change what these tests mean: only "both to score" (5) and "all three" (1) ticked,
+ * 6 markets on the slate. The seed defaults have their own test.
+ */
+const cfg = (): Config => {
+  const c = seedConfig();
+  const baseline: Record<string, number> = { "mech-both-score": 5, "mech-all-three-score": 1 };
+  for (const m of c.mechanics) {
+    m.enabled = m.id in baseline;
+    if (m.id in baseline) m.count = baseline[m.id];
+  }
+  c.rules.slateSize = 6;
+  return c;
+};
 const win = (c: Config, id: string) => c.windows.find((w) => w.id === id)!;
 const names = (c: Config, ids: string[]) => ids.map((id) => c.entities.find((e) => e.id === id)!.name);
 const groupsFor = (c: Config, windowId: string, mechanicId: string) =>
@@ -117,9 +131,25 @@ describe("mechanics added after the combo review (unticked)", () => {
     expect(q).toBe("Will Erling Haaland, Bruno Fernandes or Viktor Gy\u00f6keres score in Gameweek 6?");
   });
 
-  it("leaves every new mechanic unticked, so the default slate is unchanged", () => {
-    const c = cfg();
-    expect(c.mechanics.filter((m) => m.enabled).map((m) => m.id)).toEqual(["mech-both-score", "mech-all-three-score"]);
+  it("ships the agreed defaults: 11 mechanics ticked, 100 markets on the slate", () => {
+    const c = seedConfig();
+    const ticked = Object.fromEntries(c.mechanics.filter((m) => m.enabled).map((m) => [m.id, m.count]));
+    expect(ticked).toEqual({
+      "mech-both-score": 5,
+      "mech-all-three-score": 2,
+      "mech-both-score-or-assist": 4,
+      "mech-all-three-score-or-assist": 2,
+      "mech-teammates-score-assist": 5,
+      "mech-teammates-assisted-goal": 3,
+      "mech-both-assist": 2,
+      "mech-all-four-score": 1,
+      "mech-any-of-three-score": 3,
+      "mech-pair-combined-goals": 2,
+      "mech-strikers-combined-goals": 1,
+    });
+    expect(c.rules.slateSize).toBe(100);
+    // Gameweek 6 can produce 135 markets from these, so the slate fills to 100.
+    expect(slateSize(runPipeline(c, win(c, "win-gw6")))).toBe(100);
   });
 });
 

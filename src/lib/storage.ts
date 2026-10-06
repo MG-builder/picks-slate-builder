@@ -38,7 +38,7 @@ function write(key: string, value: unknown) {
 
 /**
  * Seed additions by revision. A saved config below a revision gets that revision's mechanics
- * and entities appended (unless already present), once. Anything the user deletes afterwards
+ * (unticked) and entities appended (unless already present), once. Anything the user deletes afterwards
  * stays deleted, because the config is then at the new revision.
  */
 const SEED_ADDITIONS: { revision: number; mechanics: string[]; entities: string[] }[] = [
@@ -114,7 +114,9 @@ function migrateConfig(c: Legacy<Config>): Config {
   for (const add of SEED_ADDITIONS.filter((a) => a.revision > from)) {
     const haveM = new Set(mechanics.map((m) => m.id));
     const haveE = new Set(entities.map((e) => e.id));
-    mechanics = [...mechanics, ...seedMechanics.filter((m) => add.mechanics.includes(m.id) && !haveM.has(m.id))];
+    // Added unticked, so an existing slate setup does not change without the user choosing it.
+    const added = seedMechanics.filter((m) => add.mechanics.includes(m.id) && !haveM.has(m.id));
+    mechanics = [...mechanics, ...added.map((m) => ({ ...m, enabled: false }))];
     entities = [...entities, ...seedEntities.filter((e) => add.entities.includes(e.id) && !haveE.has(e.id))];
   }
   return {

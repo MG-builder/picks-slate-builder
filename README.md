@@ -79,22 +79,31 @@ position:
 
 Other players are in config without tags; add a tag to bring them into a pool.
 
+Defaults: **100 markets on the slate**, with these mechanics and slate quotas.
+
 | Ticked by default | Mechanic | Slate quota | Slots | Group rule |
 |---|---|---|---|---|
 | Yes | Both players to score | 5 | scorer, scorer | different-teams |
-| Yes | All three players to score | 1 | scorer x3 | different-teams |
-| No | Both / all three to score or assist | 3 / 1 | ga x2, ga x3 | different-teams |
-| No | A scores, B assists (same team) | 2 | scorer, assister | same-team |
-| No | B assists A's goal (same team) | 2 | scorer, assister | same-team |
-| No | Both to assist; all four to score | 2 / 1 | | |
-| No | Any of three to score | 1 | scorer x3 | different-teams |
-| No | Combined goals ladder (pair), lines 2, 3 | 2 | scorer x2 | different-teams |
-| No | Strikers' combined goals ladder (four), lines 3, 4, 5 | 1 | scorer x4 | different-teams |
+| Yes | All three players to score | 2 | scorer x3 | different-teams |
+| Yes | Both players to score or assist | 4 | ga x2 | different-teams |
+| Yes | All three players to score or assist | 2 | ga x3 | different-teams |
+| Yes | A scores, B assists (same team) | 5 | scorer, assister | same-team |
+| Yes | B assists A's goal (same team) | 3 | scorer, assister | same-team |
+| Yes | Both players to assist | 2 | assister x2 | different-teams |
+| Yes | All four players to score | 1 | scorer x4 | different-teams |
+| Yes | Any of three to score | 3 | scorer x3 | different-teams |
+| Yes | Combined goals ladder (pair), lines 2, 3 | 2 | scorer x2 | different-teams |
+| Yes | Strikers' combined goals ladder (four), lines 3, 4, 5 | 1 | scorer x4 | different-teams |
 | No | Score in both gameweeks (fortnight windows only) | 2 | scorer | |
 | No | Duo goal involvements ladder, lines 2, 3 | 2 | ga x2 | same-team |
 | No | Score and team win | 2 | scorer, club | same-team |
 | No | Who scores more (level settles No) | 2 | scorer x2 | different-teams |
 | No | Both players to score 2+ | 1 | scorer x2 | different-teams |
+
+The quotas add up to 30, so the remaining 70 places are filled one at a time from each ticked
+mechanic in turn. Gameweek 6 can produce 135 markets from the ticked mechanics, so the slate
+fills to 100 with 35 reserves. These defaults apply to a fresh browser or after Reset to seed
+data; a browser that already has saved config keeps its own settings.
 
 "A scores, B assists" is same-team only: an assist is always on a teammate's goal, so a
 cross-match version is not a valid market and was removed. The first version settles on A
