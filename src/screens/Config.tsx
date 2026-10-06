@@ -4,6 +4,51 @@ import { ANY_TAG, ENTITY_TYPES, GROUP_RULES, WINDOW_KINDS } from "../types";
 import { createSlate, runPipeline, slateSize } from "../lib/generate";
 import { fmtDateTime } from "../lib/format";
 import SlatePreview from "../components/SlatePreview";
+import { type ColumnDef, ResizableHeader, useColumnWidths } from "../components/ResizableHeader";
+
+const MECHANIC_COLUMNS: ColumnDef[] = [
+  { key: "use", label: "Use", width: 44, title: "Ticked mechanics are generated" },
+  { key: "count", label: "Count", width: 62, title: "Markets of this mechanic on the slate; the rest become reserves" },
+  { key: "id", label: "ID", width: 190 },
+  { key: "name", label: "Name", width: 260 },
+  { key: "question", label: "Question shape", width: 440, title: "Placeholders: {a} {b} {c} {d}, {all}, {any}, {line}, {window}" },
+  { key: "types", label: "Entity types", width: 210 },
+  { key: "slots", label: "Slots", width: 170 },
+  { key: "rule", label: "Group rule", width: 140 },
+  { key: "leagues", label: "Leagues", width: 140 },
+  { key: "source", label: "Source market", width: 240 },
+  { key: "floor", label: "Min window", width: 110, title: "Narrowest window it can fill" },
+  { key: "ceiling", label: "Max window", width: 110, title: "Widest window it can fill" },
+  { key: "tie", label: "Tie rule", width: 340 },
+  { key: "lines", label: "Lines", width: 90 },
+  { key: "metric", label: "Metric", width: 150 },
+  { key: "operator", label: "Operator", width: 110 },
+  { key: "delete", label: "", width: 76 },
+];
+
+const ENTITY_COLUMNS: ColumnDef[] = [
+  { key: "id", label: "ID", width: 150 },
+  { key: "name", label: "Name", width: 220 },
+  { key: "type", label: "Type", width: 90 },
+  { key: "league", label: "League", width: 150 },
+  { key: "team", label: "Team", width: 180 },
+  { key: "feed", label: "Feed ID", width: 190 },
+  { key: "country", label: "Country relevance", width: 170 },
+  { key: "tags", label: "Tags", width: 190 },
+  { key: "eligible", label: "Eligible", width: 70 },
+  { key: "delete", label: "", width: 76 },
+];
+
+const WINDOW_COLUMNS: ColumnDef[] = [
+  { key: "id", label: "ID", width: 120 },
+  { key: "label", label: "Label", width: 230 },
+  { key: "kind", label: "Kind", width: 110 },
+  { key: "rounds", label: "Round IDs", width: 200 },
+  { key: "fixtures", label: "Fixtures", width: 420 },
+  { key: "opens", label: "Opens (UTC)", width: 190 },
+  { key: "closes", label: "Closes (UTC)", width: 190 },
+  { key: "delete", label: "", width: 76 },
+];
 import { seedConfig } from "../lib/storage";
 import { CommitInput, joinList, splitList, splitNumbers } from "../components/inputs";
 
@@ -40,6 +85,10 @@ export default function ConfigScreen(props: {
   const { config, onChange } = props;
   const [section, setSection] = useState<Section>("mechanics");
   const [hook, setHook] = useState("");
+  const mechCols = useColumnWidths("mechanics", MECHANIC_COLUMNS);
+  const entityCols = useColumnWidths("entities", ENTITY_COLUMNS);
+  const windowCols = useColumnWidths("windows", WINDOW_COLUMNS);
+  const sectionCols = { mechanics: mechCols, entities: entityCols, windows: windowCols, rules: null }[section];
   const previewWindow = config.windows.find((w) => w.id === props.windowId) ?? config.windows[0];
   const preview = useMemo(
     () => (previewWindow ? runPipeline(config, previewWindow) : null),
@@ -108,6 +157,9 @@ export default function ConfigScreen(props: {
       )}
 
       <div className="subtabs">
+        {sectionCols?.customised && (
+          <button className="link reset-widths" onClick={sectionCols.reset}>Reset column widths</button>
+        )}
         {(["mechanics", "entities", "windows", "rules"] as Section[]).map((s) => (
           <button key={s} className={section === s ? "tab active" : "tab"} onClick={() => setSection(s)}>
             {s[0].toUpperCase() + s.slice(1)}
@@ -119,16 +171,8 @@ export default function ConfigScreen(props: {
       {section === "mechanics" && (
         <>
           <div className="table-wrap">
-            <table className="grid edit">
-              <thead>
-                <tr>
-                  <th title="Ticked mechanics are generated">Use</th>
-                  <th title="Markets of this mechanic on the slate; the rest become reserves">Count</th>
-                  <th>ID</th><th>Name</th><th>Question shape</th><th>Entity types</th><th>Slots</th><th>Group rule</th><th>Leagues</th>
-                  <th>Source market</th><th title="Narrowest window it can fill">Min window</th><th title="Widest window it can fill">Max window</th><th>Tie rule</th><th>Lines</th>
-                  <th>Metric</th><th>Operator</th><th />
-                </tr>
-              </thead>
+            <table className="grid edit resizable" style={{ width: mechCols.total }}>
+              <ResizableHeader columns={MECHANIC_COLUMNS} widthOf={mechCols.widthOf} setWidth={mechCols.setWidth} />
               <tbody>
                 {config.mechanics.map((m, i) => {
                   const set = (p: Partial<Mechanic>) => setMechanics(replaceAt(config.mechanics, i, p));
@@ -237,13 +281,8 @@ export default function ConfigScreen(props: {
       {section === "entities" && (
         <>
           <div className="table-wrap">
-            <table className="grid edit">
-              <thead>
-                <tr>
-                  <th>ID</th><th>Name</th><th>Type</th><th>League</th><th>Team</th><th>Feed ID</th>
-                  <th>Country relevance</th><th>Tags</th><th>Eligible</th><th />
-                </tr>
-              </thead>
+            <table className="grid edit resizable" style={{ width: entityCols.total }}>
+              <ResizableHeader columns={ENTITY_COLUMNS} widthOf={entityCols.widthOf} setWidth={entityCols.setWidth} />
               <tbody>
                 {config.entities.map((e, i) => {
                   const set = (p: Partial<Entity>) => setEntities(replaceAt(config.entities, i, p));
@@ -297,12 +336,8 @@ export default function ConfigScreen(props: {
       {section === "windows" && (
         <>
           <div className="table-wrap">
-            <table className="grid edit">
-              <thead>
-                <tr>
-                  <th>ID</th><th>Label</th><th>Kind</th><th>Round IDs</th><th>Fixtures</th><th>Opens (UTC)</th><th>Closes (UTC)</th><th />
-                </tr>
-              </thead>
+            <table className="grid edit resizable" style={{ width: windowCols.total }}>
+              <ResizableHeader columns={WINDOW_COLUMNS} widthOf={windowCols.widthOf} setWidth={windowCols.setWidth} />
               <tbody>
                 {config.windows.map((w, i) => {
                   const set = (p: Partial<MarketWindow>) => setWindows(replaceAt(config.windows, i, p));

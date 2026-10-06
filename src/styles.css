@@ -157,3 +157,21 @@ select.swap { max-width: 260px; }
 .generate-panel { border: 1px solid var(--line); background: #fafbfc; border-radius: 3px; padding: 10px 12px; margin: 8px 0 4px; }
 input.slate-size { width: 70px; text-align: right; }
 button.cta { font-size: 13px; padding: 5px 14px; }
+
+/* Resizable Set up tables: columns take their widths from <colgroup>, inputs fill the cell. */
+table.grid.resizable { table-layout: fixed; }
+table.grid.resizable td { overflow: hidden; text-overflow: ellipsis; }
+table.edit.resizable input:not([type="checkbox"]),
+table.edit.resizable select { width: 100%; min-width: 0; }
+table.edit.resizable input.tiny-num { width: 100%; }
+table.edit.resizable td.nowrap { white-space: normal; }
+th.resizable-th { position: relative; overflow: hidden; text-overflow: ellipsis; }
+th.resizable-th .th-label { display: block; overflow: hidden; text-overflow: ellipsis; padding-right: 4px; }
+.col-resizer {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 7px;
+  cursor: col-resize; touch-action: none; user-select: none;
+  border-right: 2px solid transparent;
+}
+.col-resizer:hover, .col-resizer.dragging { border-right-color: var(--accent); background: rgba(31, 95, 191, 0.08); }
+.subtabs { align-items: center; }
+.reset-widths { margin-left: auto; order: 2; font-size: 12px; }
