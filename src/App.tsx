@@ -5,16 +5,14 @@ import {
   loadConfig, loadDraft, loadSlates, saveConfig, saveDraft, saveSlates,
 } from "./lib/storage";
 import { createSlate, runPipeline } from "./lib/generate";
-import GenerateScreen from "./screens/Generate";
 import ReviewScreen from "./screens/Review";
 import ConfigScreen from "./screens/Config";
 import PublishScreen from "./screens/Publish";
 import HistoryScreen from "./screens/History";
 
-type Tab = "config" | "generate" | "review" | "publish" | "history";
+type Tab = "setup" | "review" | "publish" | "history";
 const TABS: { id: Tab; label: string }[] = [
-  { id: "config", label: "Config" },
-  { id: "generate", label: "Generate" },
+  { id: "setup", label: "Set up" },
   { id: "review", label: "Review" },
   { id: "publish", label: "Publish" },
   { id: "history", label: "History" },
@@ -24,8 +22,8 @@ export default function App() {
   const [config, setConfigState] = useState<Config>(loadConfig);
   const [slates, setSlatesState] = useState<Slate[]>(loadSlates);
   const [draft, setDraftState] = useState<Draft | null>(loadDraft);
-  const [tab, setTab] = useState<Tab>(() => (loadDraft() ? "review" : "config"));
-  /** Window used by the Config preview and Generate, so both show the same thing. */
+  const [tab, setTab] = useState<Tab>(() => (loadDraft() ? "review" : "setup"));
+  /** Window chosen on the set up screen. */
   const [windowId, setWindowId] = useState(() => loadConfig().windows[0]?.id ?? "");
 
   const setConfig = (c: Config) => {
@@ -55,7 +53,7 @@ export default function App() {
     if (!draft) return;
     const win = config.windows.find((w) => w.id === draft.slate.windowId);
     if (!win) {
-      setTab("generate");
+      setTab("setup");
       return;
     }
     onGenerate(createSlate(win, draft.slate.hook, runPipeline(config, win).selected));
@@ -115,11 +113,14 @@ export default function App() {
         </span>
       </header>
       <main>
-        {tab === "config" && (
-          <ConfigScreen config={config} onChange={setConfig} windowId={windowId} onWindowChange={setWindowId} />
-        )}
-        {tab === "generate" && (
-          <GenerateScreen config={config} windowId={windowId} onWindowChange={setWindowId} onGenerate={onGenerate} />
+        {tab === "setup" && (
+          <ConfigScreen
+            config={config}
+            onChange={setConfig}
+            windowId={windowId}
+            onWindowChange={setWindowId}
+            onGenerate={onGenerate}
+          />
         )}
         {tab === "review" && (
           <ReviewScreen
@@ -128,7 +129,7 @@ export default function App() {
             onChange={(slate) => draft && setDraft({ ...draft, slate, dirty: true })}
             onSave={onSave}
             onReopen={onReopen}
-            onGoGenerate={() => setTab("generate")}
+            onGoGenerate={() => setTab("setup")}
             onRegenerate={onRegenerate}
           />
         )}

@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import type { Config, Entity, EntityType, GroupRule, Mechanic, MarketWindow, WindowKind } from "../types";
+import type { Config, Entity, EntityType, GroupRule, Mechanic, MarketWindow, Slate, WindowKind } from "../types";
 import { ANY_TAG, ENTITY_TYPES, GROUP_RULES, WINDOW_KINDS } from "../types";
-import { runPipeline } from "../lib/generate";
+import { createSlate, runPipeline, slateSize } from "../lib/generate";
+import { fmtDateTime } from "../lib/format";
 import SlatePreview from "../components/SlatePreview";
 import { seedConfig } from "../lib/storage";
 import { CommitInput, joinList, splitList, splitNumbers } from "../components/inputs";
@@ -34,9 +35,11 @@ export default function ConfigScreen(props: {
   onChange: (c: Config) => void;
   windowId: string;
   onWindowChange: (id: string) => void;
+  onGenerate: (s: Slate) => void;
 }) {
   const { config, onChange } = props;
   const [section, setSection] = useState<Section>("mechanics");
+  const [hook, setHook] = useState("");
   const previewWindow = config.windows.find((w) => w.id === props.windowId) ?? config.windows[0];
   const preview = useMemo(
     () => (previewWindow ? runPipeline(config, previewWindow) : null),
@@ -50,7 +53,7 @@ export default function ConfigScreen(props: {
   return (
     <section>
       <div className="review-head">
-        <h2>Config</h2>
+        <h2>Set up and generate</h2>
         <button
           onClick={() =>
             window.confirm("Reset all config to the seed data? Saved slates are kept.") && onChange(seedConfig())
@@ -60,21 +63,50 @@ export default function ConfigScreen(props: {
         </button>
       </div>
       <p className="muted">
-        Set up mechanics, players and windows here, then Generate. Changes save immediately. Existing slates are not
-        regenerated.
+        Choose the window and how many markets you want, tick the mechanics below and set their counts, then generate.
+        Config changes save immediately; existing slates are not regenerated.
       </p>
 
-      {previewWindow && preview && (
-        <div className="preview-strip">
-          <label>
-            Preview for{" "}
-            <select value={previewWindow.id} onChange={(e) => props.onWindowChange(e.target.value)}>
-              {config.windows.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}
-            </select>
-          </label>
-          <SlatePreview config={config} window={previewWindow} result={preview} compact />
+      {previewWindow && preview ? (
+        <div className="generate-panel">
+          <div className="form-row">
+            <label>
+              Window
+              <select value={previewWindow.id} onChange={(e) => props.onWindowChange(e.target.value)}>
+                {config.windows.map((w) => <option key={w.id} value={w.id}>{w.label} ({w.kind})</option>)}
+              </select>
+            </label>
+            <label>
+              Markets on slate
+              <CommitInput className="slate-size" value={String(config.rules.slateSize)}
+                title="Total markets on the slate"
+                onCommit={(t) => {
+                  const n = parseInt(t, 10);
+                  if (Number.isFinite(n) && n >= 0) onChange({ ...config, rules: { ...config.rules, slateSize: n } });
+                }} />
+            </label>
+            <label className="grow">
+              Weekly hook (optional)
+              <input value={hook} onChange={(e) => setHook(e.target.value)} placeholder="e.g. Derby weekend" />
+            </label>
+            <button
+              className="primary cta"
+              disabled={slateSize(preview) === 0}
+              onClick={() => props.onGenerate(createSlate(previewWindow, hook, preview.selected))}
+            >
+              Generate {slateSize(preview)} markets
+            </button>
+          </div>
+          <p className="muted tiny">
+            {previewWindow.kind}, {previewWindow.fixtures.length} fixtures, opens {fmtDateTime(previewWindow.opensAt, true)},
+            closes {fmtDateTime(previewWindow.closesAt, true)}
+          </p>
+          <SlatePreview config={config} window={previewWindow} result={preview} />
         </div>
+      ) : (
+        <p className="error">No windows configured. Add one under Windows.</p>
       )}
+
       <div className="subtabs">
         {(["mechanics", "entities", "windows", "rules"] as Section[]).map((s) => (
           <button key={s} className={section === s ? "tab active" : "tab"} onClick={() => setSection(s)}>

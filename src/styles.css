@@ -154,3 +154,6 @@ select.swap { max-width: 260px; }
 .publish-checks li { margin: 2px 0; }
 .publish-checks .ok-text { color: var(--ok); }
 .badge.published { background: var(--ok-bg); color: var(--ok); }
+.generate-panel { border: 1px solid var(--line); background: #fafbfc; border-radius: 3px; padding: 10px 12px; margin: 8px 0 4px; }
+input.slate-size { width: 70px; text-align: right; }
+button.cta { font-size: 13px; padding: 5px 14px; }

@@ -76,7 +76,11 @@ function migrateConfig(c: Legacy<Config>): Config {
         count: m.count ?? seedCounts.get(m.id) ?? 2,
       };
     }),
-    rules: { groupCap: rules.groupCap ?? seedRuleConfig.groupCap },
+    rules: {
+      slateSize:
+        typeof rules.slateSize === "number" ? rules.slateSize : seedRuleConfig.slateSize,
+      groupCap: rules.groupCap ?? seedRuleConfig.groupCap,
+    },
   };
 }
 

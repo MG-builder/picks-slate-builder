@@ -202,7 +202,7 @@ export default function ReviewScreen(props: {
           </strong>{" "}
           This slate was generated from an older config. Slates are never regenerated automatically.
           <button className="primary" onClick={props.onRegenerate}>
-            {lk.window(slate.windowId) ? "Generate a new slate from current config" : "Go to Generate"}
+            {lk.window(slate.windowId) ? "Generate a new slate from current config" : "Go to Set up"}
           </button>
         </div>
       )}
@@ -416,7 +416,7 @@ export default function ReviewScreen(props: {
       </h3>
       {showReserves && (
         reserves.length === 0 ? (
-          <p className="muted">No reserves. Raise a mechanic's possible markets or lower its count under Config.</p>
+          <p className="muted">No reserves. Raise a mechanic's possible markets or lower its count under Set up.</p>
         ) : (
           <div className="table-wrap">
             <table className="grid review">

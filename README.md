@@ -29,15 +29,18 @@ clear the site's localStorage (removes everything).
 
 ## Workflow and screens
 
-Config, then Generate, then Review, then Publish.
+Set up, then Review, then Publish.
 
-1. **Config**: set up mechanics, players (entities), windows and rules. Tick the mechanics you
-   want and set how many of each go on the slate (**Count**). A live preview at the top shows,
-   for a chosen window, how many markets each ticked mechanic would produce, how many go on the
-   slate and how many are reserves. Changes save immediately.
-2. **Generate**: pick the window, add an optional hook, press Generate. Shows the same breakdown
-   for every mechanic, including why any produce nothing (unticked, window ceiling, no players
-   fit, count 0) and groups dropped by the fixture check.
+1. **Set up**: everything that decides the slate, and the Generate button.
+   - At the top: the window, **Markets on slate** (the total), an optional hook, and
+     **Generate N markets**.
+   - A live preview for that window: per ticked mechanic, how many markets are possible, its
+     count, how many go on the slate, how many are reserves, how many were removed because the
+     teams play each other, and why a mechanic produces nothing (unticked, window ceiling, no
+     players fit). A note explains when the counts and the total differ.
+   - Below: mechanics (tick **Use**, set **Count**), entities, windows and rules. Changes save
+     immediately.
+2. **Generate** happens from Set up and opens the new slate in Review.
 3. **Review**: the slate, one row per market. Approve or reject per row or in bulk, record Yes and
    No prices and an approver. Approval is blocked with an inline message unless both prices are
    positive numbers and an approver is named. **Swap** replaces a market with any reserve: the
@@ -91,7 +94,8 @@ Two steps, deliberately nothing more:
    must pass the mechanic's group rule:
    - `same-league`: all from one league (a group made only of leagues is always allowed)
    - `different-teams`: all on different teams, and no two of those teams play each other in
-     the window's fixtures
+     the window's fixtures (so the outcomes are independent; e.g. Haaland with Isak is removed
+     in a week Liverpool play Man City)
    - `same-team`: all on the same team
 
    Each group is repeated per ladder line, if the mechanic has lines. Groups are capped at
@@ -101,8 +105,10 @@ Two steps, deliberately nothing more:
 2. **Eligibility filter**: drop a candidate if the mechanic's window ceiling cannot cover the
    selected window (gameweek < fortnight < season), or if the mechanic is unticked.
 
-Then the first `count` candidates of each mechanic, in config order, go on the slate and the rest
-become reserves. Nothing is thrown away: every candidate that passes the filter is in the slate
+Then the slate is chosen, in config order: each ticked mechanic gets up to its `count` until
+`slateSize` (Markets on slate) is reached. If the counts add up to less than `slateSize`, the
+slate is topped up one market at a time from each ticked mechanic in turn (mechanics with a count
+of 0 are left out). Everything else is a reserve. Nothing is thrown away: every candidate that passes the filter is in the slate
 or in reserves, up to the max candidates per mechanic (`groupCap`).
 
 ## Where the data lives
@@ -123,9 +129,11 @@ or in reserves, up to the max candidates per mechanic (`groupCap`).
 - `SlateMarket.otherEntityIds`: entities in the second and later slots. `entityId` is still
   the first.
 - `RuleConfig.groupCap`: the cap on groups per mechanic, so it is configurable.
-- `Mechanic.enabled` and `Mechanic.count`: the tick box, and how many markets go on the slate.
+- `Mechanic.enabled` and `Mechanic.count`: the tick box, and how many of that mechanic go on the
+  slate. `RuleConfig.slateSize`: the total markets on the slate.
 - `SlateMarket.onSlate`: on the slate or a reserve. `Slate.publishedAt`: when it was published.
-- The brief's `phase` and `RuleConfig.livePhases`/`slateSize` are gone. Config saved with phases
+- The brief's `phase` and `RuleConfig.livePhases` are gone, and `slateSize` now sets the slate
+  rather than being a display hint. Config saved with phases
   is converted: a mechanic is ticked if its phase was live, and takes the seed's count.
 - The spec's `Window` type is called `MarketWindow` in code to avoid clashing with the browser's
   global `Window` type.

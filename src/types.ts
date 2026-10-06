@@ -72,6 +72,11 @@ export interface MarketWindow {
 }
 
 export interface RuleConfig {
+  /**
+   * Total markets on the slate. Mechanics get their counts in config order until this is
+   * reached; if the counts add up to less, the slate is topped up from ticked mechanics in turn.
+   */
+  slateSize: number;
   /** Maximum candidates kept per mechanic (slate plus reserves). */
   groupCap: number;
 }

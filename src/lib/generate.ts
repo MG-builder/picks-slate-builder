@@ -162,31 +162,49 @@ export function buildCandidates(
 
 /**
  * Step 1, then step 2 (eligibility filter: window ceiling and the mechanic's tick box),
- * then the first `count` of each mechanic go on the slate and the rest become reserves.
+ * then the slate is chosen, in config order:
+ * 1. each ticked mechanic gets up to its `count`, until the slate size is reached;
+ * 2. if there is still room, the slate is topped up one market at a time from each ticked
+ *    mechanic in turn (mechanics with a count of 0 are left out).
+ * Everything else that passed the filter is a reserve.
  */
 export function runPipeline(config: Config, window: MarketWindow): PipelineResult {
   const { candidates, groupCaps, fixtureClashes } = buildCandidates(config, window);
   const mechanics = new Map<string, Mechanic>(config.mechanics.map((m) => [m.id, m]));
+  const target = Math.max(0, config.rules.slateSize);
 
-  const selected: SelectedCandidate[] = [];
-  const taken = new Map<string, number>();
+  const passed: Candidate[] = [];
   let droppedByCeiling = 0;
   let droppedByDisabled = 0;
-
   for (const c of candidates) {
     const m = mechanics.get(c.mechanicId)!;
-    if (!ceilingCovers(m.windowCeiling, window.kind)) {
-      droppedByCeiling++;
-      continue;
-    }
-    if (!m.enabled) {
-      droppedByDisabled++;
-      continue;
-    }
-    const n = taken.get(m.id) ?? 0;
-    taken.set(m.id, n + 1);
-    selected.push({ ...c, onSlate: n < Math.max(0, m.count) });
+    if (!ceilingCovers(m.windowCeiling, window.kind)) droppedByCeiling++;
+    else if (!m.enabled) droppedByDisabled++;
+    else passed.push(c);
   }
+
+  const queues = config.mechanics.map((m) => ({ m, queue: passed.filter((c) => c.mechanicId === m.id) }));
+  const chosen = new Set<string>();
+  const next = new Map(queues.map(({ m }) => [m.id, 0]));
+  const take = (mechanicId: string, queue: Candidate[]) => {
+    const i = next.get(mechanicId)!;
+    if (i >= queue.length || chosen.size >= target) return false;
+    chosen.add(queue[i].key);
+    next.set(mechanicId, i + 1);
+    return true;
+  };
+  for (const { m, queue } of queues) {
+    for (let k = 0; k < Math.max(0, m.count); k++) if (!take(m.id, queue)) break;
+  }
+  let progress = true;
+  while (chosen.size < target && progress) {
+    progress = false;
+    for (const { m, queue } of queues) {
+      if (m.count > 0 && take(m.id, queue)) progress = true;
+    }
+  }
+
+  const selected: SelectedCandidate[] = passed.map((c) => ({ ...c, onSlate: chosen.has(c.key) }));
 
   const breakdown = config.mechanics.map((m) => {
     const mine = selected.filter((c) => c.mechanicId === m.id);

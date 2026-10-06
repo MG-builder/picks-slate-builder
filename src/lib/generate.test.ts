@@ -105,11 +105,46 @@ describe("runPipeline", () => {
     expect(names(c, [firstOnSlate.entityId, ...firstOnSlate.otherEntityIds])).toEqual(["Erling Haaland", "Bruno Fernandes"]);
   });
 
+  it("cuts later mechanics when the slate size is below the counts", () => {
+    const c = cfg();
+    c.rules.slateSize = 4;
+    const r = runPipeline(c, win(c, "win-gw6"));
+    const on = (id: string) => r.breakdown.find((b) => b.mechanicId === id)!.onSlate;
+    expect([on("mech-both-score"), on("mech-all-three-score")]).toEqual([4, 0]);
+    expect(slateSize(r)).toBe(4);
+  });
+
+  it("tops up in turn from ticked mechanics when the slate size is above the counts", () => {
+    const c = cfg();
+    c.rules.slateSize = 9;
+    const r = runPipeline(c, win(c, "win-gw6"));
+    const on = (id: string) => r.breakdown.find((b) => b.mechanicId === id)!.onSlate;
+    // Counts give 5 + 1; three more, one from each mechanic in turn: both, three, both.
+    expect([on("mech-both-score"), on("mech-all-three-score")]).toEqual([7, 2]);
+    expect(slateSize(r)).toBe(9);
+  });
+
+  it("stops short when not enough markets are possible", () => {
+    const c = cfg();
+    c.rules.slateSize = 100;
+    expect(slateSize(runPipeline(c, win(c, "win-gw6")))).toBe(22);
+  });
+
+  it("never tops up from a mechanic with a count of 0", () => {
+    const c = cfg();
+    c.rules.slateSize = 10;
+    c.mechanics.find((m) => m.id === "mech-all-three-score")!.count = 0;
+    const r = runPipeline(c, win(c, "win-gw6"));
+    expect(r.breakdown.find((b) => b.mechanicId === "mech-all-three-score")!.onSlate).toBe(0);
+    expect(r.breakdown.find((b) => b.mechanicId === "mech-both-score")!.onSlate).toBe(10);
+  });
+
   it("skips unticked mechanics", () => {
     const c = cfg();
     const r = runPipeline(c, win(c, "win-gw6"));
     expect(new Set(r.selected.map((x) => x.mechanicId))).toEqual(new Set(["mech-both-score", "mech-all-three-score"]));
     c.mechanics.find((m) => m.id === "mech-teammates-score-assist")!.enabled = true;
+    c.rules.slateSize = 8;
     const ticked = runPipeline(c, win(c, "win-gw6"));
     expect(ticked.breakdown.find((b) => b.mechanicId === "mech-teammates-score-assist")!.onSlate).toBe(2);
   });
@@ -186,7 +221,7 @@ describe("storage migration", () => {
     const ticked = c.mechanics.filter((m) => m.enabled).map((m) => m.id);
     expect(ticked).toEqual(["mech-both-score", "mech-all-three-score", "mech-teammates-score-assist"]);
     expect(c.mechanics.find((m) => m.id === "mech-both-score")!.count).toBe(5);
-    expect(c.rules).toEqual({ groupCap: 25 });
+    expect(c.rules).toEqual({ slateSize: 6, groupCap: 25 });
     expect(c.mechanics.some((m) => "phase" in m)).toBe(false);
   });
 });

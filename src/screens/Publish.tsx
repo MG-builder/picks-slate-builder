@@ -18,7 +18,7 @@ export function publishProblems(draft: Draft): string[] {
 export default function PublishScreen(props: { config: Config; draft: Draft | null; onPublish: () => void }) {
   const [copied, setCopied] = useState("");
   const { draft } = props;
-  if (!draft) return <p className="empty">No slate open. Generate one or open one from History.</p>;
+  if (!draft) return <p className="empty">No slate open. Generate one from Set up or open one from History.</p>;
 
   const lk = makeLookup(props.config);
   const { slate } = draft;
