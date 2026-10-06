@@ -18,19 +18,27 @@ export default function HistoryScreen(props: {
       <table className="grid">
         <thead>
           <tr>
-            <th>Created</th><th>Window</th><th>Hook</th><th className="num">Markets</th>
+            <th>Created</th><th>Window</th><th>Hook</th><th>Status</th><th className="num">On slate</th>
             <th className="num">Approved</th><th className="num">Rejected</th><th className="num">Pending</th><th />
           </tr>
         </thead>
         <tbody>
           {rows.map((s) => {
-            const count = (st: string) => s.markets.filter((m) => m.status === st).length;
+            const slate = s.markets.filter((m) => m.onSlate);
+            const count = (st: string) => slate.filter((m) => m.status === st).length;
             return (
               <tr key={s.id} className={s.id === props.currentId ? "selected" : ""}>
                 <td>{fmtDateTime(s.createdAt)}</td>
                 <td>{lk.window(s.windowId)?.label ?? missing(s.windowId)}</td>
                 <td>{s.hook || <span className="muted">none</span>}</td>
-                <td className="num">{s.markets.length}</td>
+                <td>
+                  {s.publishedAt ? (
+                    <span className="badge published">published {fmtDateTime(s.publishedAt)}</span>
+                  ) : (
+                    <span className="muted">draft</span>
+                  )}
+                </td>
+                <td className="num">{slate.length}</td>
                 <td className="num">{count("approved")}</td>
                 <td className="num">{count("rejected")}</td>
                 <td className="num">{count("pending")}</td>

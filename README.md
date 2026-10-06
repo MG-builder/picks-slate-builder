@@ -27,21 +27,29 @@ Other scripts:
 To start again from the seed data, use **Config > Reset to seed data** (keeps saved slates), or
 clear the site's localStorage (removes everything).
 
-## Screens
+## Workflow and screens
 
-1. **Generate**: pick a window, add an optional hook, press Generate. Shows the candidate count
-   before and after the eligibility filter, why candidates were dropped, a per-mechanic
-   breakdown, and how far the list exceeds the slate size.
-2. **Review**: one row per candidate market. Approve or reject per row or in bulk, record Yes and
+Config, then Generate, then Review, then Publish.
+
+1. **Config**: set up mechanics, players (entities), windows and rules. Tick the mechanics you
+   want and set how many of each go on the slate (**Count**). A live preview at the top shows,
+   for a chosen window, how many markets each ticked mechanic would produce, how many go on the
+   slate and how many are reserves. Changes save immediately.
+2. **Generate**: pick the window, add an optional hook, press Generate. Shows the same breakdown
+   for every mechanic, including why any produce nothing (unticked, window ceiling, no players
+   fit, count 0) and groups dropped by the fixture check.
+3. **Review**: the slate, one row per market. Approve or reject per row or in bulk, record Yes and
    No prices and an approver. Approval is blocked with an inline message unless both prices are
-   positive numbers and an approver is named. Decided rows are locked; Undo returns them to
-   pending. Save writes the slate to history.
-3. **Config**: editable mechanics, entities, windows and rules. Changes save immediately and apply
-   to the next generation.
-4. **Export**: CSV of approved markets (every slate, market, mechanic, entity and window field),
-   and a plain text summary to paste into Slack.
-5. **History**: saved slates, newest first. Opening one shows it read only until you choose
-   "Reopen for editing".
+   positive numbers and an approver is named. **Swap** replaces a market with any reserve: the
+   same mechanic's reserves are listed first, then the other mechanics'. The swapped-out market
+   goes back to reserves. The reserves list also has **Add to slate**. Save writes the slate to
+   History.
+4. **Publish**: checks that nothing on the slate is still pending and at least one market is
+   approved, then publishes: stamps the slate, saves it to History and locks it. The CSV of
+   published markets and the Slack text are available once published. Rejected markets are left
+   out. Reopening a published slate for editing marks it unpublished.
+5. **History**: saved slates, newest first, with published status. Opening one shows it read only
+   until you choose "Reopen for editing".
 
 ## Player markets (current seed)
 
@@ -58,17 +66,16 @@ position:
 
 Other players are in config without tags; add a tag to bring them into a pool.
 
-| Phase | Mechanic | Slots | Group rule |
-|---|---|---|---|
-| 1 (live) | Both players to score | scorer, scorer | different-teams |
-| 1 (live) | All three players to score | scorer x3 | different-teams |
-| 2 | Both / all three to score or assist | ga x2, ga x3 | different-teams |
-| 3 | Teammates: A scores, B assists | scorer, assister | same-team |
-| 4 (parked) | Both to assist; A scores, B assists across matches; all four to score | | |
+| Ticked by default | Mechanic | Count | Slots | Group rule |
+|---|---|---|---|---|
+| Yes | Both players to score | 5 | scorer, scorer | different-teams |
+| Yes | All three players to score | 1 | scorer x3 | different-teams |
+| No | Both / all three to score or assist | 3 / 1 | ga x2, ga x3 | different-teams |
+| No | Teammates: A scores, B assists | 2 | scorer, assister | same-team |
+| No | Both to assist; A scores, B assists across matches; all four to score | 2 / 2 / 1 | | |
 
-Phase 2 waits on an agreed assist data source, phase 3 on same-match (bet builder) pricing.
-Phase 4 holds combinations assessed and not recommended, so they can be switched on later
-under Config, Rules.
+Which mechanics run when is a product decision for the PRDs, so the app has no phases: a
+mechanic is either ticked or not.
 
 Windows carry the real fixtures for gameweeks 6 and 7 from the official 2026/27 fixture list.
 Kick-off times are placeholders.
@@ -88,12 +95,15 @@ Two steps, deliberately nothing more:
    - `same-team`: all on the same team
 
    Each group is repeated per ladder line, if the mechanic has lines. Groups are capped at
-   `groupCap` per mechanic, in config order, so entity order sets priority. Generate reports
+   `groupCap` per mechanic (slate plus reserves), in config order, so entity order sets
+   priority. Generate reports
    both the groups left out by the fixture check and any cut by the cap.
 2. **Eligibility filter**: drop a candidate if the mechanic's window ceiling cannot cover the
-   selected window (gameweek < fortnight < season), or if its phase is not in `livePhases`.
+   selected window (gameweek < fortnight < season), or if the mechanic is unticked.
 
-`slateSize` is a display hint only. Nothing is ever truncated to fit it.
+Then the first `count` candidates of each mechanic, in config order, go on the slate and the rest
+become reserves. Nothing is thrown away: every candidate that passes the filter is in the slate
+or in reserves, up to the max candidates per mechanic (`groupCap`).
 
 ## Where the data lives
 
@@ -113,7 +123,10 @@ Two steps, deliberately nothing more:
 - `SlateMarket.otherEntityIds`: entities in the second and later slots. `entityId` is still
   the first.
 - `RuleConfig.groupCap`: the cap on groups per mechanic, so it is configurable.
-- Phase 4 exists for parked mechanics.
+- `Mechanic.enabled` and `Mechanic.count`: the tick box, and how many markets go on the slate.
+- `SlateMarket.onSlate`: on the slate or a reserve. `Slate.publishedAt`: when it was published.
+- The brief's `phase` and `RuleConfig.livePhases`/`slateSize` are gone. Config saved with phases
+  is converted: a mechanic is ticked if its phase was live, and takes the seed's count.
 - The spec's `Window` type is called `MarketWindow` in code to avoid clashing with the browser's
   global `Window` type.
 
@@ -129,14 +142,16 @@ slate uses, that slate shows `[missing: id]` in its place.
 
 - **Dedupe**: overlapping or near-identical candidates are all listed.
 - **Rotation**: no memory of what ran in previous weeks.
-- **Ranking**: candidates appear in config order, not by quality or appeal.
-- **Grouping or assembly**: no themed bundles and no picking a final slate of `slateSize`.
+- **Ranking**: candidates appear in config order, not by quality or appeal. The slate is simply
+  the first `count` of each mechanic; reorder players in config to change priority.
+- **Grouping**: no themed bundles.
 - **Resolution rule text**: only the mechanic's short tie rule is shown; no settlement wording is
   generated.
 - **Pricing**: prices are recorded decisions. The app never calculates, suggests or sanity checks
   odds beyond "is it a positive number".
 - **Settlement**: no results, no grading.
-- **Publishing**: nothing leaves the browser except the CSV and text you copy out yourself.
+- **Publishing to customers**: Publish locks the slate and gives you the CSV and Slack text;
+  nothing leaves the browser except what you copy out yourself.
 
 Country relevance is stored on entities and editable, but is not used by the pipeline.
 Fixtures are typed into config; there is no fixtures feed.

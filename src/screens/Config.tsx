@@ -1,6 +1,8 @@
-import { useState } from "react";
-import type { Config, Entity, EntityType, GroupRule, Mechanic, MarketWindow, Phase, WindowKind } from "../types";
-import { ANY_TAG, ENTITY_TYPES, GROUP_RULES, PHASES, WINDOW_KINDS } from "../types";
+import { useMemo, useState } from "react";
+import type { Config, Entity, EntityType, GroupRule, Mechanic, MarketWindow, WindowKind } from "../types";
+import { ANY_TAG, ENTITY_TYPES, GROUP_RULES, WINDOW_KINDS } from "../types";
+import { runPipeline } from "../lib/generate";
+import SlatePreview from "../components/SlatePreview";
 import { seedConfig } from "../lib/storage";
 import { CommitInput, joinList, splitList, splitNumbers } from "../components/inputs";
 
@@ -27,9 +29,19 @@ function DeleteButton(props: { label: string; onDelete: () => void }) {
 const toLocalInput = (iso: string) => iso.slice(0, 16);
 const fromLocalInput = (v: string) => (v ? `${v}:00Z` : "");
 
-export default function ConfigScreen(props: { config: Config; onChange: (c: Config) => void }) {
+export default function ConfigScreen(props: {
+  config: Config;
+  onChange: (c: Config) => void;
+  windowId: string;
+  onWindowChange: (id: string) => void;
+}) {
   const { config, onChange } = props;
   const [section, setSection] = useState<Section>("mechanics");
+  const previewWindow = config.windows.find((w) => w.id === props.windowId) ?? config.windows[0];
+  const preview = useMemo(
+    () => (previewWindow ? runPipeline(config, previewWindow) : null),
+    [config, previewWindow],
+  );
 
   const setMechanics = (mechanics: Mechanic[]) => onChange({ ...config, mechanics });
   const setEntities = (entities: Entity[]) => onChange({ ...config, entities });
@@ -47,7 +59,22 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
           Reset to seed data
         </button>
       </div>
-      <p className="muted">Changes save immediately and apply to the next generation. Existing slates are not regenerated.</p>
+      <p className="muted">
+        Set up mechanics, players and windows here, then Generate. Changes save immediately. Existing slates are not
+        regenerated.
+      </p>
+
+      {previewWindow && preview && (
+        <div className="preview-strip">
+          <label>
+            Preview for{" "}
+            <select value={previewWindow.id} onChange={(e) => props.onWindowChange(e.target.value)}>
+              {config.windows.map((w) => <option key={w.id} value={w.id}>{w.label}</option>)}
+            </select>
+          </label>
+          <SlatePreview config={config} window={previewWindow} result={preview} compact />
+        </div>
+      )}
       <div className="subtabs">
         {(["mechanics", "entities", "windows", "rules"] as Section[]).map((s) => (
           <button key={s} className={section === s ? "tab active" : "tab"} onClick={() => setSection(s)}>
@@ -63,8 +90,10 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
             <table className="grid edit">
               <thead>
                 <tr>
+                  <th title="Ticked mechanics are generated">Use</th>
+                  <th title="Markets of this mechanic on the slate; the rest become reserves">Count</th>
                   <th>ID</th><th>Name</th><th>Question shape</th><th>Entity types</th><th>Slots</th><th>Group rule</th><th>Leagues</th>
-                  <th>Source market</th><th>Ceiling</th><th>Tie rule</th><th>Phase</th><th>Lines</th>
+                  <th>Source market</th><th>Ceiling</th><th>Tie rule</th><th>Lines</th>
                   <th>Metric</th><th>Operator</th><th />
                 </tr>
               </thead>
@@ -72,7 +101,18 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
                 {config.mechanics.map((m, i) => {
                   const set = (p: Partial<Mechanic>) => setMechanics(replaceAt(config.mechanics, i, p));
                   return (
-                    <tr key={m.id}>
+                    <tr key={m.id} className={m.enabled ? "" : "dim"}>
+                      <td className="center">
+                        <input type="checkbox" aria-label={`Use ${m.name}`} checked={m.enabled}
+                          onChange={(e) => set({ enabled: e.target.checked })} />
+                      </td>
+                      <td>
+                        <CommitInput className="tiny-num" value={String(m.count)}
+                          onCommit={(t) => {
+                            const n = parseInt(t, 10);
+                            if (Number.isFinite(n) && n >= 0) set({ count: n });
+                          }} />
+                      </td>
                       <td className="mono muted">{m.id}</td>
                       <td><input value={m.name} onChange={(e) => set({ name: e.target.value })} /></td>
                       <td>
@@ -124,11 +164,6 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
                       </td>
                       <td><input value={m.tieRule} onChange={(e) => set({ tieRule: e.target.value })} /></td>
                       <td>
-                        <select value={m.phase} onChange={(e) => set({ phase: Number(e.target.value) as Phase })}>
-                          {PHASES.map((p) => <option key={p} value={p}>{p}</option>)}
-                        </select>
-                      </td>
-                      <td>
                         <CommitInput className="short" value={joinList(m.lines)} placeholder="none"
                           title="Comma separated, e.g. 2, 3. Empty for non-ladder mechanics."
                           onCommit={(t) => set({ lines: splitNumbers(t) })} />
@@ -152,7 +187,7 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
                 {
                   id: newId("mech"), name: "New mechanic", questionShape: "", allowedEntityTypes: [],
                   slots: [ANY_TAG], groupRule: GROUP_RULES[0], leagues: [], sourceMarket: "", windowCeiling: WINDOW_KINDS[0], tieRule: "",
-                  phase: PHASES[0], lines: [], metric: "", operator: "",
+                  enabled: false, count: 1, lines: [], metric: "", operator: "",
                 },
               ])
             }
@@ -287,44 +322,7 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
         <table className="grid edit rules">
           <tbody>
             <tr>
-              <th>Slate size</th>
-              <td>
-                <CommitInput className="short" value={String(config.rules.slateSize)}
-                  onCommit={(t) => {
-                    const n = parseInt(t, 10);
-                    if (Number.isFinite(n) && n >= 0) onChange({ ...config, rules: { ...config.rules, slateSize: n } });
-                  }} />
-              </td>
-              <td className="muted">Display hint only. Review shows how many candidates exceed it; nothing is truncated.</td>
-            </tr>
-            <tr>
-              <th>Live phases</th>
-              <td className="nowrap">
-                {PHASES.map((p) => (
-                  <label key={p} className="check">
-                    <input
-                      type="checkbox"
-                      checked={config.rules.livePhases.includes(p)}
-                      onChange={(e) =>
-                        onChange({
-                          ...config,
-                          rules: {
-                            ...config.rules,
-                            livePhases: e.target.checked
-                              ? PHASES.filter((x) => x === p || config.rules.livePhases.includes(x))
-                              : config.rules.livePhases.filter((x) => x !== p),
-                          },
-                        })
-                      }
-                    />
-                    {p}
-                  </label>
-                ))}
-              </td>
-              <td className="muted">Mechanics in other phases are dropped by the eligibility filter.</td>
-            </tr>
-            <tr>
-              <th>Group cap</th>
+              <th>Max candidates per mechanic</th>
               <td>
                 <CommitInput className="short" value={String(config.rules.groupCap)}
                   onCommit={(t) => {
@@ -332,7 +330,9 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
                     if (Number.isFinite(n) && n >= 0) onChange({ ...config, rules: { ...config.rules, groupCap: n } });
                   }} />
               </td>
-              <td className="muted">Maximum pairs or trios per multi-entity mechanic. Generate reports any left out.</td>
+              <td className="muted">
+                Caps slate plus reserves for each multi-player mechanic, in config order. Generate reports any left out.
+              </td>
             </tr>
           </tbody>
         </table>

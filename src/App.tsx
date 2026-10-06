@@ -8,15 +8,15 @@ import { createSlate, runPipeline } from "./lib/generate";
 import GenerateScreen from "./screens/Generate";
 import ReviewScreen from "./screens/Review";
 import ConfigScreen from "./screens/Config";
-import ExportScreen from "./screens/Export";
+import PublishScreen from "./screens/Publish";
 import HistoryScreen from "./screens/History";
 
-type Tab = "generate" | "review" | "config" | "export" | "history";
+type Tab = "config" | "generate" | "review" | "publish" | "history";
 const TABS: { id: Tab; label: string }[] = [
+  { id: "config", label: "Config" },
   { id: "generate", label: "Generate" },
   { id: "review", label: "Review" },
-  { id: "config", label: "Config" },
-  { id: "export", label: "Export" },
+  { id: "publish", label: "Publish" },
   { id: "history", label: "History" },
 ];
 
@@ -24,7 +24,9 @@ export default function App() {
   const [config, setConfigState] = useState<Config>(loadConfig);
   const [slates, setSlatesState] = useState<Slate[]>(loadSlates);
   const [draft, setDraftState] = useState<Draft | null>(loadDraft);
-  const [tab, setTab] = useState<Tab>(() => (loadDraft() ? "review" : "generate"));
+  const [tab, setTab] = useState<Tab>(() => (loadDraft() ? "review" : "config"));
+  /** Window used by the Config preview and Generate, so both show the same thing. */
+  const [windowId, setWindowId] = useState(() => loadConfig().windows[0]?.id ?? "");
 
   const setConfig = (c: Config) => {
     setConfigState(c);
@@ -56,7 +58,7 @@ export default function App() {
       setTab("generate");
       return;
     }
-    onGenerate(createSlate(win, draft.slate.hook, runPipeline(config, win).eligible));
+    onGenerate(createSlate(win, draft.slate.hook, runPipeline(config, win).selected));
   };
 
   const onSave = () => {
@@ -70,6 +72,24 @@ export default function App() {
     if (!okToReplaceDraft()) return;
     setDraft({ slate, readOnly: true, dirty: false });
     setTab("review");
+  };
+
+  /** Stamps the slate as published, saves it to History and locks it. */
+  const onPublish = () => {
+    if (!draft) return;
+    const slate = { ...draft.slate, publishedAt: new Date().toISOString() };
+    setSlates([slate, ...slates.filter((s) => s.id !== slate.id)]);
+    setDraft({ slate, readOnly: true, dirty: false });
+  };
+
+  const onReopen = () => {
+    if (!draft) return;
+    if (draft.slate.publishedAt) {
+      if (!window.confirm("This slate has been published. Reopen it for editing? It will be marked unpublished.")) return;
+      setDraft({ slate: { ...draft.slate, publishedAt: null }, readOnly: false, dirty: true });
+      return;
+    }
+    setDraft({ ...draft, readOnly: false });
   };
 
   return (
@@ -89,24 +109,30 @@ export default function App() {
           ))}
         </nav>
         <span className="topbar-meta">
-          {draft ? `Current slate: ${draft.slate.id}${draft.readOnly ? " (read only)" : ""}` : "No slate open"}
+          {draft
+            ? `Current slate: ${draft.slate.id}${draft.slate.publishedAt ? " (published)" : draft.readOnly ? " (read only)" : ""}`
+            : "No slate open"}
         </span>
       </header>
       <main>
-        {tab === "generate" && <GenerateScreen config={config} onGenerate={onGenerate} />}
+        {tab === "config" && (
+          <ConfigScreen config={config} onChange={setConfig} windowId={windowId} onWindowChange={setWindowId} />
+        )}
+        {tab === "generate" && (
+          <GenerateScreen config={config} windowId={windowId} onWindowChange={setWindowId} onGenerate={onGenerate} />
+        )}
         {tab === "review" && (
           <ReviewScreen
             config={config}
             draft={draft}
             onChange={(slate) => draft && setDraft({ ...draft, slate, dirty: true })}
             onSave={onSave}
-            onReopen={() => draft && setDraft({ ...draft, readOnly: false })}
+            onReopen={onReopen}
             onGoGenerate={() => setTab("generate")}
             onRegenerate={onRegenerate}
           />
         )}
-        {tab === "config" && <ConfigScreen config={config} onChange={setConfig} />}
-        {tab === "export" && <ExportScreen config={config} draft={draft} />}
+        {tab === "publish" && <PublishScreen config={config} draft={draft} onPublish={onPublish} />}
         {tab === "history" && (
           <HistoryScreen config={config} slates={slates} currentId={draft?.slate.id ?? null} onOpen={onOpen} />
         )}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Config, MarketStatus, SlateMarket } from "../types";
 import type { Draft } from "../lib/storage";
-import { entitiesLabel, fmtDateTime, isPositive, makeLookup, missing, question } from "../lib/format";
+import { type Lookup, entitiesLabel, fmtDateTime, isPositive, makeLookup, missing, question } from "../lib/format";
 import { PriceInput } from "../components/inputs";
 
 type StatusFilter = "all" | MarketStatus;
@@ -13,6 +13,34 @@ function approvalProblem(m: SlateMarket): string | null {
     !m.approver?.trim() && "approver name",
   ].filter(Boolean);
   return missingBits.length ? `Cannot approve: needs ${missingBits.join(", ")}.` : null;
+}
+
+/** Swap picker: reserves of the same mechanic first, then every other reserve by mechanic. */
+function SwapSelect(props: { market: SlateMarket; reserves: SlateMarket[]; lk: Lookup; onSwap: (id: string) => void }) {
+  const { market, reserves, lk } = props;
+  if (!reserves.length) return <span className="muted tiny">no reserves</span>;
+  const byMechanic = new Map<string, SlateMarket[]>();
+  for (const r of reserves) byMechanic.set(r.mechanicId, [...(byMechanic.get(r.mechanicId) ?? []), r]);
+  const order = [market.mechanicId, ...[...byMechanic.keys()].filter((id) => id !== market.mechanicId)];
+  return (
+    <select
+      className="swap"
+      value=""
+      aria-label="Swap for a reserve"
+      onChange={(e) => e.target.value && props.onSwap(e.target.value)}
+    >
+      <option value="">Swap for...</option>
+      {order
+        .filter((id) => byMechanic.has(id))
+        .map((id) => (
+          <optgroup key={id} label={`${lk.mechanic(id)?.name ?? missing(id)}${id === market.mechanicId ? " (same)" : ""}`}>
+            {byMechanic.get(id)!.map((r) => (
+              <option key={r.id} value={r.id}>{entitiesLabel(lk, r)}{r.line != null ? ` (${r.line})` : ""}</option>
+            ))}
+          </optgroup>
+        ))}
+    </select>
+  );
 }
 
 export default function ReviewScreen(props: {
@@ -32,12 +60,15 @@ export default function ReviewScreen(props: {
   const [search, setSearch] = useState("");
   const [bulkApprover, setBulkApprover] = useState("");
   const [bulkNote, setBulkNote] = useState("");
+  const [showReserves, setShowReserves] = useState(false);
   const lk = makeLookup(config);
 
   const markets = draft?.slate.markets ?? [];
+  const onSlate = markets.filter((m) => m.onSlate);
+  const reserves = markets.filter((m) => !m.onSlate);
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return markets.filter(
+    return onSlate.filter(
       (m) =>
         (statusFilter === "all" || m.status === statusFilter) &&
         (!mechFilter || m.mechanicId === mechFilter) &&
@@ -65,8 +96,7 @@ export default function ReviewScreen(props: {
   ).length;
   const win = lk.window(slate.windowId);
   const counts = { approved: 0, rejected: 0, pending: 0 };
-  for (const m of markets) counts[m.status]++;
-  const over = markets.length - config.rules.slateSize;
+  for (const m of onSlate) counts[m.status]++;
 
   const update = (fn: (m: SlateMarket) => SlateMarket, ids: Set<string>) =>
     props.onChange({ ...slate, markets: markets.map((m) => (ids.has(m.id) ? fn(m) : m)) });
@@ -90,7 +120,7 @@ export default function ReviewScreen(props: {
     const now = new Date().toISOString();
     const ok = new Set<string>();
     const msgPatch: Record<string, string | null> = {};
-    for (const m of markets.filter((x) => ids.includes(x.id) && x.status !== "approved")) {
+    for (const m of onSlate.filter((x) => ids.includes(x.id) && x.status !== "approved")) {
       const problem = approvalProblem(m);
       msgPatch[m.id] = problem;
       if (!problem) ok.add(m.id);
@@ -103,7 +133,7 @@ export default function ReviewScreen(props: {
 
   const reject = (ids: string[]) => {
     const now = new Date().toISOString();
-    const set = new Set(markets.filter((m) => ids.includes(m.id) && m.status !== "rejected").map((m) => m.id));
+    const set = new Set(onSlate.filter((m) => ids.includes(m.id) && m.status !== "rejected").map((m) => m.id));
     update((m) => ({ ...m, status: "rejected", decidedAt: now }), set);
     setMsgs(Object.fromEntries([...set].map((id) => [id, null])));
     return set.size;
@@ -112,7 +142,25 @@ export default function ReviewScreen(props: {
   const resetToPending = (ids: string[]) =>
     update((m) => ({ ...m, status: "pending", decidedAt: null }), new Set(ids));
 
-  const selectedIds = [...selected].filter((id) => markets.some((m) => m.id === id));
+  /** The reserve takes the slate market's place; the slate market goes back to reserves as pending. */
+  const swap = (slateId: string, reserveId: string) => {
+    const i = markets.findIndex((m) => m.id === slateId);
+    const j = markets.findIndex((m) => m.id === reserveId);
+    const next = [...markets];
+    next[i] = { ...markets[j], onSlate: true };
+    next[j] = { ...markets[i], onSlate: false, status: "pending", decidedAt: null };
+    props.onChange({ ...slate, markets: next });
+    setMsgs({ [slateId]: null });
+    setSelected((prev) => {
+      const s = new Set(prev);
+      s.delete(slateId);
+      return s;
+    });
+  };
+
+  const addToSlate = (id: string) => update((m) => ({ ...m, onSlate: true }), new Set([id]));
+
+  const selectedIds = [...selected].filter((id) => onSlate.some((m) => m.id === id));
   const allVisibleSelected = visible.length > 0 && visible.every((m) => selected.has(m.id));
   const toggle = (id: string) =>
     setSelected((prev) => {
@@ -128,7 +176,8 @@ export default function ReviewScreen(props: {
         <div>
           <h2>
             Review: {win?.label ?? missing(slate.windowId)}
-            {readOnly && <span className="badge">read only</span>}
+            {slate.publishedAt && <span className="badge published">published {fmtDateTime(slate.publishedAt)}</span>}
+            {readOnly && !slate.publishedAt && <span className="badge">read only</span>}
             {!readOnly && draft.dirty && <span className="badge warn-badge">unsaved</span>}
           </h2>
           <div className="muted">
@@ -173,8 +222,7 @@ export default function ReviewScreen(props: {
         <span className="count rejected">Rejected {counts.rejected}</span>
         <span className="count pending">Pending {counts.pending}</span>
         <span className="muted">
-          {markets.length} candidates. Slate size {config.rules.slateSize}
-          {over > 0 ? `, ${over} over` : ", within size"}. Approved {counts.approved} of {config.rules.slateSize}.
+          {onSlate.length} markets on the slate, {reserves.length} reserves.
         </span>
       </div>
 
@@ -187,7 +235,7 @@ export default function ReviewScreen(props: {
         </select>
         <select value={mechFilter} onChange={(e) => setMechFilter(e.target.value)}>
           <option value="">All mechanics</option>
-          {[...new Set(markets.map((m) => m.mechanicId))].map((id) => (
+          {[...new Set(onSlate.map((m) => m.mechanicId))].map((id) => (
             <option key={id} value={id}>{lk.mechanic(id)?.name ?? missing(id)}</option>
           ))}
         </select>
@@ -227,7 +275,7 @@ export default function ReviewScreen(props: {
             title="Fills the approver on selected pending rows"
             onClick={() => {
               const pending = new Set(
-                markets.filter((m) => selected.has(m.id) && m.status === "pending").map((m) => m.id),
+                onSlate.filter((m) => selected.has(m.id) && m.status === "pending").map((m) => m.id),
               );
               update((m) => ({ ...m, approver: bulkApprover.trim() }), pending);
               setBulkNote(`Approver set on ${pending.size} pending rows.`);
@@ -265,12 +313,12 @@ export default function ReviewScreen(props: {
               <th className="num">#</th>
               <th>Mechanic</th>
               <th>Entity / entities</th>
+              {!readOnly && <th title="Replace this market with a reserve">Swap</th>}
               <th>Metric</th>
               <th>Operator</th>
               <th className="num">Line</th>
               <th>Window</th>
               <th>Source market</th>
-              <th className="num">Ph</th>
               <th>Tie rule</th>
               <th>Yes</th>
               <th>No</th>
@@ -283,9 +331,9 @@ export default function ReviewScreen(props: {
             {visible.map((m) => {
               const mech = lk.mechanic(m.mechanicId);
               const locked = readOnly || m.status !== "pending";
-              const idx = markets.indexOf(m) + 1;
+              const idx = onSlate.indexOf(m) + 1;
               const msg = messages[m.id];
-              const cols = readOnly ? 14 : 16;
+              const cols = readOnly ? 13 : 16;
               return [
                 <tr key={m.id} className={`status-${m.status}${selected.has(m.id) ? " selected" : ""}`}>
                   {!readOnly && (
@@ -300,13 +348,21 @@ export default function ReviewScreen(props: {
                   )}
                   <td className="num muted">{idx}</td>
                   <td title={question(lk, m)}>{mech?.name ?? missing(m.mechanicId)}</td>
-                  <td>{entitiesLabel(lk, m)}</td>
+                  <td title={question(lk, m)}>{entitiesLabel(lk, m)}</td>
+                  {!readOnly && (
+                    <td>
+                      {m.status === "approved" ? (
+                        <span className="muted tiny">undo to swap</span>
+                      ) : (
+                        <SwapSelect market={m} reserves={reserves} lk={lk} onSwap={(rid) => swap(m.id, rid)} />
+                      )}
+                    </td>
+                  )}
                   <td>{mech?.metric}</td>
                   <td>{mech?.operator}</td>
                   <td className="num">{m.line ?? ""}</td>
                   <td>{lk.window(m.windowId)?.label ?? missing(m.windowId)}</td>
                   <td>{mech?.sourceMarket}</td>
-                  <td className="num">{mech?.phase}</td>
                   <td className="tie">{mech?.tieRule}</td>
                   <td>
                     <PriceInput label="Yes price" value={m.yesPrice} disabled={locked}
@@ -353,6 +409,42 @@ export default function ReviewScreen(props: {
         </table>
         {visible.length === 0 && <p className="empty">No rows match the filters.</p>}
       </div>
+
+      <h3>
+        Reserves ({reserves.length}){" "}
+        <button className="link" onClick={() => setShowReserves((v) => !v)}>{showReserves ? "hide" : "show"}</button>
+      </h3>
+      {showReserves && (
+        reserves.length === 0 ? (
+          <p className="muted">No reserves. Raise a mechanic's possible markets or lower its count under Config.</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="grid review">
+              <thead>
+                <tr>
+                  <th>Mechanic</th><th>Entity / entities</th><th>Question</th>{!readOnly && <th />}
+                </tr>
+              </thead>
+              <tbody>
+                {reserves.map((r) => (
+                  <tr key={r.id} className="reserve">
+                    <td>{lk.mechanic(r.mechanicId)?.name ?? missing(r.mechanicId)}</td>
+                    <td>{entitiesLabel(lk, r)}</td>
+                    <td>{question(lk, r)}</td>
+                    {!readOnly && (
+                      <td>
+                        <button onClick={() => addToSlate(r.id)} title="Adds it to the slate without removing anything">
+                          Add to slate
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
     </section>
   );
 }

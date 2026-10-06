@@ -2,10 +2,10 @@ import type { Slate } from "../types";
 import { type Lookup, entityName, missing, question } from "./format";
 
 const CSV_COLUMNS = [
-  "slateId", "slateCreatedAt", "slateHook",
+  "slateId", "slateCreatedAt", "slatePublishedAt", "slateHook",
   "windowId", "windowLabel", "windowKind", "windowOpensAt", "windowClosesAt",
   "marketId", "question",
-  "mechanicId", "mechanicName", "questionShape", "mechanicLeagues", "sourceMarket", "windowCeiling", "phase", "tieRule", "metric", "operator",
+  "mechanicId", "mechanicName", "questionShape", "mechanicLeagues", "sourceMarket", "windowCeiling", "tieRule", "metric", "operator",
   "entityId", "entityName", "entityType", "entityLeague", "entityFeedId",
   "otherEntityIds", "otherEntityNames", "otherEntityTypes", "otherEntityLeagues", "otherEntityFeedIds",
   "line", "status", "yesPrice", "noPrice", "approver", "decidedAt",
@@ -19,7 +19,7 @@ function cell(v: unknown): string {
 export function approvedCsv(slate: Slate, lk: Lookup): string {
   const w = lk.window(slate.windowId);
   const rows = slate.markets
-    .filter((m) => m.status === "approved")
+    .filter((m) => m.onSlate && m.status === "approved")
     .map((m) => {
       const mech = lk.mechanic(m.mechanicId);
       const a = lk.entity(m.entityId);
@@ -28,6 +28,7 @@ export function approvedCsv(slate: Slate, lk: Lookup): string {
       const row: Record<(typeof CSV_COLUMNS)[number], unknown> = {
         slateId: slate.id,
         slateCreatedAt: slate.createdAt,
+        slatePublishedAt: slate.publishedAt,
         slateHook: slate.hook,
         windowId: slate.windowId,
         windowLabel: w?.label ?? missing(slate.windowId),
@@ -42,7 +43,6 @@ export function approvedCsv(slate: Slate, lk: Lookup): string {
         mechanicLeagues: mech ? joined(mech.leagues) : "",
         sourceMarket: mech?.sourceMarket,
         windowCeiling: mech?.windowCeiling,
-        phase: mech?.phase,
         tieRule: mech?.tieRule,
         metric: mech?.metric,
         operator: mech?.operator,
@@ -70,11 +70,11 @@ export function approvedCsv(slate: Slate, lk: Lookup): string {
 
 export function slackSummary(slate: Slate, lk: Lookup): string {
   const w = lk.window(slate.windowId);
-  const approved = slate.markets.filter((m) => m.status === "approved");
+  const approved = slate.markets.filter((m) => m.onSlate && m.status === "approved");
   const lines = [
     `*Picks slate: ${w?.label ?? missing(slate.windowId)}*`,
     `Hook: ${slate.hook || "(none)"}`,
-    `Approved: ${approved.length} of ${slate.markets.length} candidates`,
+    `Markets: ${approved.length}`,
     "",
     ...approved.map(
       (m, i) => `${i + 1}. ${question(lk, m)} | Yes ${m.yesPrice} | No ${m.noPrice} | ${m.approver}`,

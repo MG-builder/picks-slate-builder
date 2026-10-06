@@ -9,11 +9,8 @@ const base = {
 } satisfies Partial<Mechanic>;
 
 /**
- * Phases follow the combo assessment:
- * 1 MVP: goals only, built on anytime goalscorer, nothing new to settle.
- * 2 Needs an agreed assist data source.
- * 3 Same-team, correlated: needs bet builder style pricing.
- * 4 Parked: assessed and not recommended. Kept so it can be switched on later.
+ * Every assessed combination is here. Ticked (enabled) ones are generated; `count` is how
+ * many of each go on the slate, with the rest kept as reserves.
  */
 export const seedMechanics: Mechanic[] = [
   {
@@ -25,7 +22,8 @@ export const seedMechanics: Mechanic[] = [
     groupRule: "different-teams",
     sourceMarket: "Anytime goalscorer",
     tieRule: "Void if either player does not start",
-    phase: 1,
+    enabled: true,
+    count: 5,
     metric: "Goals",
     operator: ">= 1 each",
   },
@@ -38,7 +36,8 @@ export const seedMechanics: Mechanic[] = [
     groupRule: "different-teams",
     sourceMarket: "Anytime goalscorer",
     tieRule: "Void if any player does not start",
-    phase: 1,
+    enabled: true,
+    count: 1,
     metric: "Goals",
     operator: ">= 1 each",
   },
@@ -51,7 +50,8 @@ export const seedMechanics: Mechanic[] = [
     groupRule: "different-teams",
     sourceMarket: "Anytime goalscorer + anytime assist",
     tieRule: "Void if either player does not start. Assists per agreed data source",
-    phase: 2,
+    enabled: false,
+    count: 3,
     metric: "Goals + assists",
     operator: ">= 1 each",
   },
@@ -64,7 +64,8 @@ export const seedMechanics: Mechanic[] = [
     groupRule: "different-teams",
     sourceMarket: "Anytime goalscorer + anytime assist",
     tieRule: "Void if any player does not start. Assists per agreed data source",
-    phase: 2,
+    enabled: false,
+    count: 1,
     metric: "Goals + assists",
     operator: ">= 1 each",
   },
@@ -77,7 +78,8 @@ export const seedMechanics: Mechanic[] = [
     groupRule: "same-team",
     sourceMarket: "Bet builder (same match)",
     tieRule: "Void if either player does not start. The assist need not be on the goal",
-    phase: 3,
+    enabled: false,
+    count: 2,
     metric: "Goals / assists",
     operator: ">= 1 / >= 1",
   },
@@ -90,7 +92,8 @@ export const seedMechanics: Mechanic[] = [
     groupRule: "different-teams",
     sourceMarket: "Anytime assist",
     tieRule: "Void if either player does not start. Assists per agreed data source",
-    phase: 4,
+    enabled: false,
+    count: 2,
     metric: "Assists",
     operator: ">= 1 each",
   },
@@ -103,7 +106,8 @@ export const seedMechanics: Mechanic[] = [
     groupRule: "different-teams",
     sourceMarket: "Anytime goalscorer + anytime assist",
     tieRule: "Void if either player does not start. Assists per agreed data source",
-    phase: 4,
+    enabled: false,
+    count: 2,
     metric: "Goals / assists",
     operator: ">= 1 / >= 1",
   },
@@ -116,7 +120,8 @@ export const seedMechanics: Mechanic[] = [
     groupRule: "different-teams",
     sourceMarket: "Anytime goalscorer",
     tieRule: "Void if any player does not start",
-    phase: 4,
+    enabled: false,
+    count: 1,
     metric: "Goals",
     operator: ">= 1 each",
   },

@@ -1,12 +1,10 @@
 export type EntityType = "player" | "team" | "league";
 export type WindowKind = "gameweek" | "fortnight" | "season";
-export type Phase = 1 | 2 | 3 | 4;
 export type MarketStatus = "pending" | "approved" | "rejected";
 
 export const ENTITY_TYPES: EntityType[] = ["player", "team", "league"];
 /** Ordered narrowest to widest. A ceiling covers every kind at or before it. */
 export const WINDOW_KINDS: WindowKind[] = ["gameweek", "fortnight", "season"];
-export const PHASES: Phase[] = [1, 2, 3, 4];
 
 /**
  * How the entities in a multi-entity market relate to each other.
@@ -38,7 +36,10 @@ export interface Mechanic {
   sourceMarket: string;
   windowCeiling: WindowKind;
   tieRule: string;
-  phase: Phase;
+  /** Ticked mechanics are generated; unticked ones are kept in config but skipped. */
+  enabled: boolean;
+  /** Markets of this mechanic to put on the slate. The rest become reserves. */
+  count: number;
   lines: number[];
   metric: string;
   operator: string;
@@ -71,9 +72,7 @@ export interface MarketWindow {
 }
 
 export interface RuleConfig {
-  slateSize: number;
-  livePhases: Phase[];
-  /** Maximum groups generated per multi-entity mechanic. */
+  /** Maximum candidates kept per mechanic (slate plus reserves). */
   groupCap: number;
 }
 
@@ -97,6 +96,8 @@ export interface SlateMarket {
   noPrice: number | null;
   approver: string | null;
   decidedAt: string | null;
+  /** On the slate, or a reserve that can be swapped in from Review. */
+  onSlate: boolean;
 }
 
 export interface Slate {
@@ -105,4 +106,6 @@ export interface Slate {
   createdAt: string;
   hook: string;
   markets: SlateMarket[];
+  /** Set when the slate is published; a published slate is read only. */
+  publishedAt: string | null;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCandidates, ceilingCovers, runPipeline } from "./generate";
+import { buildCandidates, ceilingCovers, createSlate, runPipeline, slateSize } from "./generate";
 import { loadConfig, loadDraft, seedConfig } from "./storage";
 import { makeLookup, question } from "./format";
 import type { Config } from "../types";
@@ -92,18 +92,48 @@ describe("pools", () => {
 });
 
 describe("runPipeline", () => {
-  it("keeps only phase 1 markets by default", () => {
+  it("puts each ticked mechanic's count on the slate and keeps the rest as reserves", () => {
     const c = cfg();
     const r = runPipeline(c, win(c, "win-gw6"));
-    expect(new Set(r.eligible.map((x) => x.mechanicId))).toEqual(new Set(["mech-both-score", "mech-all-three-score"]));
-    expect(r.eligible).toHaveLength(22);
+    const both = r.breakdown.find((b) => b.mechanicId === "mech-both-score")!;
+    const three = r.breakdown.find((b) => b.mechanicId === "mech-all-three-score")!;
+    expect([both.onSlate, both.reserves]).toEqual([5, 7]);
+    expect([three.onSlate, three.reserves]).toEqual([1, 9]);
+    expect(slateSize(r)).toBe(6);
+    // The first `count` in config order go on the slate.
+    const firstOnSlate = r.selected.find((x) => x.onSlate)!;
+    expect(names(c, [firstOnSlate.entityId, ...firstOnSlate.otherEntityIds])).toEqual(["Erling Haaland", "Bruno Fernandes"]);
+  });
+
+  it("skips unticked mechanics", () => {
+    const c = cfg();
+    const r = runPipeline(c, win(c, "win-gw6"));
+    expect(new Set(r.selected.map((x) => x.mechanicId))).toEqual(new Set(["mech-both-score", "mech-all-three-score"]));
+    c.mechanics.find((m) => m.id === "mech-teammates-score-assist")!.enabled = true;
+    const ticked = runPipeline(c, win(c, "win-gw6"));
+    expect(ticked.breakdown.find((b) => b.mechanicId === "mech-teammates-score-assist")!.onSlate).toBe(2);
+  });
+
+  it("puts everything in reserves when a count is 0", () => {
+    const c = cfg();
+    c.mechanics.find((m) => m.id === "mech-all-three-score")!.count = 0;
+    const b = runPipeline(c, win(c, "win-gw6")).breakdown.find((x) => x.mechanicId === "mech-all-three-score")!;
+    expect([b.onSlate, b.reserves]).toEqual([0, 10]);
   });
 
   it("drops every gameweek mechanic from a fortnight window", () => {
     const c = cfg();
     const r = runPipeline(c, win(c, "win-fn-6-7"));
-    expect(r.eligible).toHaveLength(0);
+    expect(r.selected).toHaveLength(0);
     expect(r.droppedByCeiling).toBe(r.candidates.length);
+  });
+
+  it("marks slate and reserve markets on the created slate", () => {
+    const c = cfg();
+    const slate = createSlate(win(c, "win-gw6"), "hook", runPipeline(c, win(c, "win-gw6")).selected);
+    expect(slate.markets.filter((m) => m.onSlate)).toHaveLength(6);
+    expect(slate.markets).toHaveLength(22);
+    expect(slate.publishedAt).toBeNull();
   });
 });
 
@@ -112,6 +142,7 @@ describe("question text", () => {
     const q = question(makeLookup(cfg()), {
       id: "m", mechanicId: "mech-all-three-score", entityId: "pl-haaland", otherEntityIds: ["pl-bruno", "pl-gyokeres"],
       line: null, windowId: "win-gw6", status: "pending", yesPrice: null, noPrice: null, approver: null, decidedAt: null,
+      onSlate: true,
     });
     expect(q).toBe("Will Erling Haaland, Bruno Fernandes and Viktor Gyökeres all score in Gameweek 6?");
   });
@@ -132,6 +163,30 @@ describe("storage migration", () => {
     store.set("psb.v1.draft", JSON.stringify({ readOnly: false, dirty: false, slate: { id: "s1", markets: [market] } }));
 
     expect(loadConfig()).toEqual(seedConfig());
-    expect(loadDraft()!.slate.markets[0].otherEntityIds).toEqual(["pl-isak"]);
+    const draft = loadDraft()!;
+    expect(draft.slate.markets[0].otherEntityIds).toEqual(["pl-isak"]);
+    expect(draft.slate.markets[0].onSlate).toBe(true);
+    expect(draft.slate.publishedAt).toBeNull();
+  });
+
+  it("turns phases into tick boxes: ticked if the phase was live", () => {
+    const store = new Map<string, string>();
+    globalThis.localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    } as Storage;
+    const old = cfg() as unknown as Record<string, any>;
+    const phases: Record<string, number> = { "mech-both-score": 1, "mech-all-three-score": 1, "mech-teammates-score-assist": 3 };
+    old.mechanics = old.mechanics.map(({ enabled: _e, count: _c, ...m }: Record<string, any>) => ({ ...m, phase: phases[m.id] ?? 2 }));
+    old.rules = { slateSize: 6, livePhases: [1, 3], groupCap: 25 };
+    store.set("psb.v1.config", JSON.stringify(old));
+
+    const c = loadConfig();
+    const ticked = c.mechanics.filter((m) => m.enabled).map((m) => m.id);
+    expect(ticked).toEqual(["mech-both-score", "mech-all-three-score", "mech-teammates-score-assist"]);
+    expect(c.mechanics.find((m) => m.id === "mech-both-score")!.count).toBe(5);
+    expect(c.rules).toEqual({ groupCap: 25 });
+    expect(c.mechanics.some((m) => "phase" in m)).toBe(false);
   });
 });

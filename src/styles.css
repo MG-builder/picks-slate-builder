@@ -143,3 +143,14 @@ label.check { display: inline-flex; align-items: center; gap: 3px; margin-right:
 label.check input { margin: 0; }
 
 textarea.summary { width: 100%; max-width: 900px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; display: block; margin-bottom: 6px; }
+
+.preview-strip { border: 1px solid var(--line); background: #fafbfc; border-radius: 3px; padding: 8px 10px; margin: 8px 0 4px; }
+.preview-strip > label { font-size: 12px; color: var(--muted); }
+.preview-total { margin: 4px 0 6px; font-size: 14px; }
+.preview.compact table.grid { width: auto; min-width: 60%; }
+table.edit input.tiny-num { min-width: 0; width: 46px; text-align: right; }
+table.review tr.reserve td { color: #6b7280; }
+select.swap { max-width: 260px; }
+.publish-checks li { margin: 2px 0; }
+.publish-checks .ok-text { color: var(--ok); }
+.badge.published { background: var(--ok-bg); color: var(--ok); }

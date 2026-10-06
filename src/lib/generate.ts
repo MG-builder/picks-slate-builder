@@ -22,17 +22,26 @@ export interface FixtureClashNote {
 
 export interface MechanicBreakdown {
   mechanicId: string;
+  /** Candidates built for this mechanic and window, before the filter. */
   candidates: number;
   ceilingOk: boolean;
-  phaseLive: boolean;
+  enabled: boolean;
+  /** Markets that go on the slate: the first `count` that pass the filter. */
+  onSlate: number;
+  /** Markets that pass the filter but exceed `count`, kept for swapping in. */
+  reserves: number;
+}
+
+export interface SelectedCandidate extends Candidate {
+  onSlate: boolean;
 }
 
 export interface PipelineResult {
   candidates: Candidate[];
-  eligible: Candidate[];
+  /** Candidates that pass the filter, each marked as on the slate or a reserve. */
+  selected: SelectedCandidate[];
   droppedByCeiling: number;
-  droppedByPhase: number;
-  droppedByBoth: number;
+  droppedByDisabled: number;
   groupCaps: GroupCapNote[];
   fixtureClashes: FixtureClashNote[];
   breakdown: MechanicBreakdown[];
@@ -151,54 +160,60 @@ export function buildCandidates(
   return { candidates, groupCaps, fixtureClashes };
 }
 
-/** Step 1 then step 2 (eligibility filter). Nothing else, deliberately. */
+/**
+ * Step 1, then step 2 (eligibility filter: window ceiling and the mechanic's tick box),
+ * then the first `count` of each mechanic go on the slate and the rest become reserves.
+ */
 export function runPipeline(config: Config, window: MarketWindow): PipelineResult {
   const { candidates, groupCaps, fixtureClashes } = buildCandidates(config, window);
   const mechanics = new Map<string, Mechanic>(config.mechanics.map((m) => [m.id, m]));
 
-  const eligible: Candidate[] = [];
+  const selected: SelectedCandidate[] = [];
+  const taken = new Map<string, number>();
   let droppedByCeiling = 0;
-  let droppedByPhase = 0;
-  let droppedByBoth = 0;
+  let droppedByDisabled = 0;
 
   for (const c of candidates) {
     const m = mechanics.get(c.mechanicId)!;
-    const ceilingOk = ceilingCovers(m.windowCeiling, window.kind);
-    const phaseLive = config.rules.livePhases.includes(m.phase);
-    if (ceilingOk && phaseLive) eligible.push(c);
-    if (!ceilingOk) droppedByCeiling++;
-    if (!phaseLive) droppedByPhase++;
-    if (!ceilingOk && !phaseLive) droppedByBoth++;
+    if (!ceilingCovers(m.windowCeiling, window.kind)) {
+      droppedByCeiling++;
+      continue;
+    }
+    if (!m.enabled) {
+      droppedByDisabled++;
+      continue;
+    }
+    const n = taken.get(m.id) ?? 0;
+    taken.set(m.id, n + 1);
+    selected.push({ ...c, onSlate: n < Math.max(0, m.count) });
   }
 
-  const breakdown = config.mechanics.map((m) => ({
-    mechanicId: m.id,
-    candidates: candidates.filter((c) => c.mechanicId === m.id).length,
-    ceilingOk: ceilingCovers(m.windowCeiling, window.kind),
-    phaseLive: config.rules.livePhases.includes(m.phase),
-  }));
+  const breakdown = config.mechanics.map((m) => {
+    const mine = selected.filter((c) => c.mechanicId === m.id);
+    return {
+      mechanicId: m.id,
+      candidates: candidates.filter((c) => c.mechanicId === m.id).length,
+      ceilingOk: ceilingCovers(m.windowCeiling, window.kind),
+      enabled: m.enabled,
+      onSlate: mine.filter((c) => c.onSlate).length,
+      reserves: mine.filter((c) => !c.onSlate).length,
+    };
+  });
 
-  return { candidates, eligible, droppedByCeiling, droppedByPhase, droppedByBoth, groupCaps, fixtureClashes, breakdown };
+  return { candidates, selected, droppedByCeiling, droppedByDisabled, groupCaps, fixtureClashes, breakdown };
 }
 
-export function droppedSummary(r: PipelineResult, window: MarketWindow): string {
-  const dropped = r.candidates.length - r.eligible.length;
-  if (dropped === 0) return "Nothing dropped.";
-  const parts: string[] = [];
-  if (r.droppedByCeiling) parts.push(`${r.droppedByCeiling} because the mechanic's window ceiling cannot cover a ${window.kind} window`);
-  if (r.droppedByPhase) parts.push(`${r.droppedByPhase} because the mechanic's phase is not live`);
-  const both = r.droppedByBoth ? ` (${r.droppedByBoth} failed both checks)` : "";
-  return `Dropped ${dropped}: ${parts.join("; ")}${both}.`;
-}
+export const slateSize = (r: PipelineResult) => r.selected.filter((c) => c.onSlate).length;
 
-export function createSlate(window: MarketWindow, hook: string, eligible: Candidate[]): Slate {
+export function createSlate(window: MarketWindow, hook: string, selected: SelectedCandidate[]): Slate {
   const id = `slate-${Date.now().toString(36)}`;
   return {
     id,
     windowId: window.id,
     createdAt: new Date().toISOString(),
     hook: hook.trim(),
-    markets: eligible.map((c, i) => ({
+    publishedAt: null,
+    markets: selected.map((c, i) => ({
       id: `${id}-${i + 1}`,
       mechanicId: c.mechanicId,
       entityId: c.entityId,
@@ -210,6 +225,7 @@ export function createSlate(window: MarketWindow, hook: string, eligible: Candid
       noPrice: null,
       approver: null,
       decidedAt: null,
+      onSlate: c.onSlate,
     })),
   };
 }

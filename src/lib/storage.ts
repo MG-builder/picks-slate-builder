@@ -47,28 +47,51 @@ export function seedConfig(): Config {
 
 /**
  * Brings data saved by earlier versions up to date.
- * Config saved before mechanics had slots (the player-markets rework) is replaced with the
- * seed, because the old mechanics, entities and windows no longer apply.
- * Slates saved with `secondEntityId` get `otherEntityIds`.
+ * - Config saved before mechanics had slots (the player-markets rework) is replaced with the
+ *   seed, because the old mechanics, entities and windows no longer apply.
+ * - Config saved with phases: a mechanic is ticked if its phase was live, and gets the seed's
+ *   count (or 2 for mechanics not in the seed).
+ * - Slates saved with `secondEntityId` get `otherEntityIds`; older slates have every market on
+ *   the slate and are unpublished.
  */
 type Legacy<T> = T & Record<string, unknown>;
 
 function migrateConfig(c: Legacy<Config>): Config {
-  const current =
+  const reworked =
     c.mechanics.every((m) => Array.isArray(m.slots)) &&
     c.entities.every((e) => Array.isArray(e.tags)) &&
     c.windows.every((w) => Array.isArray(w.fixtures));
-  return current ? c : seedConfig();
+  if (!reworked) return seedConfig();
+
+  const rules = c.rules as Legacy<Config["rules"]>;
+  const livePhases = rules.livePhases as number[] | undefined;
+  const seedCounts = new Map(seedMechanics.map((m) => [m.id, m.count]));
+  return {
+    ...c,
+    mechanics: c.mechanics.map((m) => {
+      const { phase, ...rest } = m as Legacy<typeof m>;
+      return {
+        ...rest,
+        enabled: m.enabled ?? (livePhases ? livePhases.includes(phase as number) : true),
+        count: m.count ?? seedCounts.get(m.id) ?? 2,
+      };
+    }),
+    rules: { groupCap: rules.groupCap ?? seedRuleConfig.groupCap },
+  };
 }
 
 function migrateSlate(s: Slate): Slate {
   return {
     ...s,
+    publishedAt: s.publishedAt ?? null,
     markets: s.markets.map((m) => {
       const legacy = m as Legacy<typeof m>;
-      if (m.otherEntityIds) return m;
       const second = legacy.secondEntityId as string | null | undefined;
-      return { ...m, otherEntityIds: second ? [second] : [] };
+      return {
+        ...m,
+        otherEntityIds: m.otherEntityIds ?? (second ? [second] : []),
+        onSlate: m.onSlate ?? true,
+      };
     }),
   };
 }
