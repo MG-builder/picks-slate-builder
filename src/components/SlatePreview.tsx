@@ -35,11 +35,11 @@ export default function SlatePreview(props: { config: Config; window: MarketWind
     notes.push(`Only ${onSlate} markets are possible from the ticked mechanics, so the slate is short of ${target}.`);
   } else if (countTotal > target) {
     notes.push(
-      `The counts add up to ${countTotal}, more than the slate size of ${target}, so mechanics lower in the list get fewer.`,
+      `The slate quotas add up to ${countTotal}, more than the ${target} markets on the slate, so mechanics lower in the list get fewer.`,
     );
   } else if (countTotal < target) {
     notes.push(
-      `The counts add up to ${countTotal}, so ${target - countTotal} more are added, one at a time from each ticked mechanic in turn.`,
+      `The slate quotas add up to ${countTotal}, so ${target - countTotal} more are added, one at a time from each ticked mechanic in turn.`,
     );
   }
 
@@ -55,7 +55,7 @@ export default function SlatePreview(props: { config: Config; window: MarketWind
           <tr>
             <th>Mechanic</th>
             <th className="num" title="Markets possible from the players, slots, group rule and fixtures">Possible</th>
-            <th className="num">Count</th>
+            <th className="num" title="Set in the Mechanics table">Slate quota</th>
             <th className="num">On slate</th>
             <th className="num" title="Possible markets not on the slate, swappable in Review">Reserves</th>
             <th className="num" title="Groups left out because their teams play each other in this window">

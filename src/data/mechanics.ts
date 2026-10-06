@@ -10,7 +10,7 @@ const base = {
 } satisfies Partial<Mechanic>;
 
 /**
- * Every assessed combination is here. Ticked (enabled) ones are generated; `count` is how
+ * Every assessed combination is here. Ticked (enabled) ones are generated; `count` (the Slate quota column) is how
  * many of each go on the slate, with the rest kept as reserves.
  */
 export const seedMechanics: Mechanic[] = [

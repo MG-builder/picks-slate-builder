@@ -37,8 +37,8 @@ Set up, then Review, then Publish.
    - A live preview for that window: per ticked mechanic, how many markets are possible, its
      count, how many go on the slate, how many are reserves, how many were removed because the
      teams play each other, and why a mechanic produces nothing (unticked, window ceiling, no
-     players fit). A note explains when the counts and the total differ.
-   - Below: mechanics (tick **Use**, set **Count**), entities, windows and rules. Changes save
+     players fit). A note explains when the slate quotas and the total differ.
+   - Below: mechanics (tick **Use**, set **Slate quota**), entities, windows and rules. Changes save
      immediately.
 2. **Generate** happens from Set up and opens the new slate in Review.
 3. **Review**: the slate, one row per market. Approve or reject per row or in bulk, record Yes and
@@ -70,7 +70,7 @@ position:
 
 Other players are in config without tags; add a tag to bring them into a pool.
 
-| Ticked by default | Mechanic | Count | Slots | Group rule |
+| Ticked by default | Mechanic | Slate quota | Slots | Group rule |
 |---|---|---|---|---|
 | Yes | Both players to score | 5 | scorer, scorer | different-teams |
 | Yes | All three players to score | 1 | scorer x3 | different-teams |
@@ -122,8 +122,8 @@ Two steps, deliberately nothing more:
 2. **Eligibility filter**: drop a candidate if the selected window is outside the mechanic's
    min and max window (gameweek < fortnight < season), or if the mechanic is unticked.
 
-Then the slate is chosen, in config order: each ticked mechanic gets up to its `count` until
-`slateSize` (Markets on slate) is reached. If the counts add up to less than `slateSize`, the
+Then the slate is chosen, in config order: each ticked mechanic gets up to its Slate quota (`count`) until
+`slateSize` (Markets on slate) is reached. If the slate quotas (`count`) add up to less than `slateSize`, the
 slate is topped up one market at a time from each ticked mechanic in turn (mechanics with a count
 of 0 are left out). Everything else is a reserve. Nothing is thrown away: every candidate that passes the filter is in the slate
 or in reserves, up to the max candidates per mechanic (`groupCap`).

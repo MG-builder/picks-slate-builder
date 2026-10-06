@@ -416,7 +416,7 @@ export default function ReviewScreen(props: {
       </h3>
       {showReserves && (
         reserves.length === 0 ? (
-          <p className="muted">No reserves. Raise a mechanic's possible markets or lower its count under Set up.</p>
+          <p className="muted">No reserves. Raise a mechanic's possible markets or lower its slate quota under Set up.</p>
         ) : (
           <div className="table-wrap">
             <table className="grid review">

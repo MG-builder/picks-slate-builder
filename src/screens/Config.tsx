@@ -8,7 +8,7 @@ import { type ColumnDef, ResizableHeader, useColumnWidths } from "../components/
 
 const MECHANIC_COLUMNS: ColumnDef[] = [
   { key: "use", label: "Use", width: 44, title: "Ticked mechanics are generated" },
-  { key: "count", label: "Count", width: 62, title: "Markets of this mechanic on the slate; the rest become reserves" },
+  { key: "count", label: "Slate quota", width: 92, title: "How many of this mechanic's markets you want on the slate. Filled in list order up to Markets on slate; the rest become reserves" },
   { key: "id", label: "ID", width: 190 },
   { key: "name", label: "Name", width: 260 },
   { key: "question", label: "Question shape", width: 440, title: "Placeholders: {a} {b} {c} {d}, {all}, {any}, {line}, {window}" },
@@ -112,7 +112,7 @@ export default function ConfigScreen(props: {
         </button>
       </div>
       <p className="muted">
-        Choose the window and how many markets you want, tick the mechanics below and set their counts, then generate.
+        Choose the window and how many markets you want, tick the mechanics below and set their slate quotas, then generate.
         Config changes save immediately; existing slates are not regenerated.
       </p>
 
