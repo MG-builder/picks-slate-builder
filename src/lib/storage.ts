@@ -51,10 +51,17 @@ export function seedConfig(): Config {
  *   seed, because the old mechanics, entities and windows no longer apply.
  * - Config saved with phases: a mechanic is ticked if its phase was live, and gets the seed's
  *   count (or 2 for mechanics not in the seed).
+ * - Retired mechanics are removed (see RETIRED_MECHANICS).
  * - Slates saved with `secondEntityId` get `otherEntityIds`; older slates have every market on
  *   the slate and are unpublished.
  */
 type Legacy<T> = T & Record<string, unknown>;
+
+/**
+ * Mechanics removed because they were wrong, not just unused: "A scores, B assists" across
+ * different matches cannot happen (an assist is always on a teammate's goal).
+ */
+const RETIRED_MECHANICS = new Set(["mech-cross-score-assist"]);
 
 function migrateConfig(c: Legacy<Config>): Config {
   const reworked =
@@ -68,7 +75,7 @@ function migrateConfig(c: Legacy<Config>): Config {
   const seedCounts = new Map(seedMechanics.map((m) => [m.id, m.count]));
   return {
     ...c,
-    mechanics: c.mechanics.map((m) => {
+    mechanics: c.mechanics.filter((m) => !RETIRED_MECHANICS.has(m.id)).map((m) => {
       const { phase, ...rest } = m as Legacy<typeof m>;
       return {
         ...rest,

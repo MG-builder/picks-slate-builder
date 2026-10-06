@@ -58,7 +58,7 @@ describe("all three players to score, gameweek 6", () => {
   });
 });
 
-describe("teammates: A scores, B assists", () => {
+describe("A scores, B assists (same team)", () => {
   it("builds ordered scorer and assister pairs on the same team", () => {
     const c = cfg();
     const duos = groupsFor(c, "win-gw6", "mech-teammates-score-assist").map((g) => names(c, g).join(" > "));
@@ -184,6 +184,30 @@ describe("question text", () => {
 });
 
 describe("storage migration", () => {
+  it("removes the retired cross-match A scores, B assists mechanic", () => {
+    const store = new Map<string, string>();
+    globalThis.localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    } as Storage;
+    const saved = cfg();
+    saved.mechanics.push({ ...saved.mechanics[0], id: "mech-cross-score-assist", groupRule: "different-teams" });
+    store.set("psb.v1.config", JSON.stringify(saved));
+    expect(loadConfig().mechanics.map((m) => m.id)).not.toContain("mech-cross-score-assist");
+  });
+
+  it("only ever pairs a scorer and assister from the same team", () => {
+    const c = cfg();
+    c.mechanics.forEach((m) => (m.enabled = true));
+    const team = new Map(c.entities.map((e) => [e.id, e.team]));
+    const assistMechanics = c.mechanics.filter((m) => m.slots.includes("scorer") && m.slots.includes("assister"));
+    expect(assistMechanics.every((m) => m.groupRule === "same-team")).toBe(true);
+    for (const m of assistMechanics) {
+      for (const [a, b] of groupsFor(c, "win-gw7", m.id)) expect(team.get(a)).toBe(team.get(b));
+    }
+  });
+
   it("replaces pre-slot config with the seed and upgrades old slates", () => {
     const store = new Map<string, string>();
     globalThis.localStorage = {

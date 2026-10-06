@@ -74,8 +74,14 @@ Other players are in config without tags; add a tag to bring them into a pool.
 | Yes | Both players to score | 5 | scorer, scorer | different-teams |
 | Yes | All three players to score | 1 | scorer x3 | different-teams |
 | No | Both / all three to score or assist | 3 / 1 | ga x2, ga x3 | different-teams |
-| No | Teammates: A scores, B assists | 2 | scorer, assister | same-team |
-| No | Both to assist; A scores, B assists across matches; all four to score | 2 / 2 / 1 | | |
+| No | A scores, B assists (same team) | 2 | scorer, assister | same-team |
+| No | B assists A's goal (same team) | 2 | scorer, assister | same-team |
+| No | Both to assist; all four to score | 2 / 1 | | |
+
+"A scores, B assists" is same-team only: an assist is always on a teammate's goal, so a
+cross-match version is not a valid market and was removed. The first version settles on A
+scoring and B assisting in the match; the second needs goal-by-goal data to check the assist
+was on A's goal.
 
 Which mechanics run when is a product decision for the PRDs, so the app has no phases: a
 mechanic is either ticked or not.
