@@ -1,5 +1,11 @@
 # Picks Slate Builder
 
+**Live prototype:** https://mg-builder.github.io/picks-slate-builder/
+
+> Prototype for discussion. Everything you change (config, slates, approvals) is saved only in
+> your own browser, so each person who opens the link has their own copy, starting from the seed
+> data. Nothing is sent anywhere. Player names and fixtures are real; prices are whatever you type.
+
 Internal prototype for the sportsbook product team. It generates a weekly list of candidate
 prediction markets from a config, and lets a trader approve or reject each one and record a
 Yes and No price.
@@ -23,6 +29,9 @@ Other scripts:
 - `npm run build`: typecheck and build to `dist/`
 - `npm test`: unit tests for the generation pipeline
 - `npm run typecheck`: TypeScript only
+
+Every push to `main` runs the tests, builds, and deploys to GitHub Pages
+(`.github/workflows/deploy.yml`).
 
 To start again from the seed data, use **Config > Reset to seed data** (keeps saved slates), or
 clear the site's localStorage (removes everything).
