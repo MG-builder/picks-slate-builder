@@ -1,5 +1,5 @@
-import type { Config, Entity, Mechanic, MarketWindow, Slate, WindowKind } from "../types";
-import { WINDOW_KINDS } from "../types";
+import type { Config, Entity, GroupRule, Mechanic, MarketWindow, Slate, WindowKind } from "../types";
+import { ANY_TAG, WINDOW_KINDS } from "../types";
 
 export interface Candidate {
   key: string;
@@ -13,6 +13,11 @@ export interface GroupCapNote {
   mechanicId: string;
   available: number;
   generated: number;
+}
+
+export interface FixtureClashNote {
+  mechanicId: string;
+  dropped: number;
 }
 
 export interface MechanicBreakdown {
@@ -29,6 +34,7 @@ export interface PipelineResult {
   droppedByPhase: number;
   droppedByBoth: number;
   groupCaps: GroupCapNote[];
+  fixtureClashes: FixtureClashNote[];
   breakdown: MechanicBreakdown[];
 }
 
@@ -36,28 +42,75 @@ export function ceilingCovers(ceiling: WindowKind, kind: WindowKind): boolean {
   return WINDOW_KINDS.indexOf(ceiling) >= WINDOW_KINDS.indexOf(kind);
 }
 
+const hasTag = (e: Entity, tag: string) => tag === ANY_TAG || e.tags.includes(tag);
+
+/** Teams that play each other in the window, as "A|B" keys in both orders. */
+function fixturePairs(window: MarketWindow): Set<string> {
+  const pairs = new Set<string>();
+  for (const f of window.fixtures) {
+    const [home, away] = f.split(/\s+v\s+/i).map((t) => t.trim());
+    if (home && away) {
+      pairs.add(`${home}|${away}`);
+      pairs.add(`${away}|${home}`);
+    }
+  }
+  return pairs;
+}
+
+type GroupCheck = "ok" | "rule" | "fixture";
+
+function checkGroup(group: Entity[], rule: GroupRule, meetings: Set<string>): GroupCheck {
+  if (group.length < 2) return "ok";
+  if (rule === "same-league") {
+    const allLeagues = group.every((e) => e.type === "league");
+    return allLeagues || group.every((e) => e.league === group[0].league) ? "ok" : "rule";
+  }
+  if (rule === "same-team") {
+    return group[0].team && group.every((e) => e.team === group[0].team) ? "ok" : "rule";
+  }
+  // different-teams
+  const teams = group.map((e) => e.team);
+  if (teams.some((t) => !t) || new Set(teams).size !== teams.length) return "rule";
+  for (let i = 0; i < teams.length; i++) {
+    for (let j = i + 1; j < teams.length; j++) {
+      if (meetings.has(`${teams[i]}|${teams[j]}`)) return "fixture";
+    }
+  }
+  return "ok";
+}
+
 /**
- * Unordered groups of `size` entities, all from the same league.
- * Leagues are the exception: a group made only of leagues can always be formed.
+ * Every way to fill the mechanic's slots from the pool.
+ * Identical slots give unordered groups (combinations); otherwise each slot is a role
+ * and the order matters, though one entity never fills two slots.
  */
-function groupsFrom(pool: Entity[], size: number): Entity[][] {
-  const groups: Entity[][] = [];
-  const pick = (start: number, acc: Entity[]) => {
-    if (acc.length === size) {
-      const allLeagues = acc.every((e) => e.type === "league");
-      if (allLeagues || acc.every((e) => e.league === acc[0].league)) groups.push(acc);
+function fillSlots(pool: Entity[], slots: string[]): Entity[][] {
+  const out: Entity[][] = [];
+  const unordered = slots.every((t) => t === slots[0]);
+  const pick = (slot: number, start: number, acc: Entity[]) => {
+    if (slot === slots.length) {
+      out.push(acc);
       return;
     }
-    for (let i = start; i < pool.length; i++) pick(i + 1, [...acc, pool[i]]);
+    for (let i = unordered ? start : 0; i < pool.length; i++) {
+      const e = pool[i];
+      if (acc.includes(e) || !hasTag(e, slots[slot])) continue;
+      pick(slot + 1, i + 1, [...acc, e]);
+    }
   };
-  pick(0, []);
-  return groups;
+  pick(0, 0, []);
+  return out;
 }
 
 /** Step 1: cross product of mechanics, compatible eligible entities and lines. */
-export function buildCandidates(config: Config): { candidates: Candidate[]; groupCaps: GroupCapNote[] } {
+export function buildCandidates(
+  config: Config,
+  window: MarketWindow,
+): { candidates: Candidate[]; groupCaps: GroupCapNote[]; fixtureClashes: FixtureClashNote[] } {
   const candidates: Candidate[] = [];
   const groupCaps: GroupCapNote[] = [];
+  const fixtureClashes: FixtureClashNote[] = [];
+  const meetings = fixturePairs(window);
 
   for (const m of config.mechanics) {
     const pool = config.entities.filter(
@@ -66,16 +119,21 @@ export function buildCandidates(config: Config): { candidates: Candidate[]; grou
         m.allowedEntityTypes.includes(e.type) &&
         (m.leagues.length === 0 || m.leagues.includes(e.league)),
     );
-    let groups: Entity[][];
-    if (m.entityCount > 1) {
-      const all = groupsFrom(pool, m.entityCount);
-      const capped = all.slice(0, Math.max(0, config.rules.groupCap));
-      if (capped.length < all.length) {
-        groupCaps.push({ mechanicId: m.id, available: all.length, generated: capped.length });
+    const valid: Entity[][] = [];
+    let clashes = 0;
+    for (const group of fillSlots(pool, m.slots)) {
+      const result = checkGroup(group, m.groupRule, meetings);
+      if (result === "ok") valid.push(group);
+      if (result === "fixture") clashes++;
+    }
+    if (clashes) fixtureClashes.push({ mechanicId: m.id, dropped: clashes });
+
+    let groups = valid;
+    if (m.slots.length > 1) {
+      groups = valid.slice(0, Math.max(0, config.rules.groupCap));
+      if (groups.length < valid.length) {
+        groupCaps.push({ mechanicId: m.id, available: valid.length, generated: groups.length });
       }
-      groups = capped;
-    } else {
-      groups = pool.map((e) => [e]);
     }
     const lines: (number | null)[] = m.lines.length ? m.lines : [null];
     for (const [a, ...others] of groups) {
@@ -90,12 +148,12 @@ export function buildCandidates(config: Config): { candidates: Candidate[]; grou
       }
     }
   }
-  return { candidates, groupCaps };
+  return { candidates, groupCaps, fixtureClashes };
 }
 
 /** Step 1 then step 2 (eligibility filter). Nothing else, deliberately. */
 export function runPipeline(config: Config, window: MarketWindow): PipelineResult {
-  const { candidates, groupCaps } = buildCandidates(config);
+  const { candidates, groupCaps, fixtureClashes } = buildCandidates(config, window);
   const mechanics = new Map<string, Mechanic>(config.mechanics.map((m) => [m.id, m]));
 
   const eligible: Candidate[] = [];
@@ -120,7 +178,7 @@ export function runPipeline(config: Config, window: MarketWindow): PipelineResul
     phaseLive: config.rules.livePhases.includes(m.phase),
   }));
 
-  return { candidates, eligible, droppedByCeiling, droppedByPhase, droppedByBoth, groupCaps, breakdown };
+  return { candidates, eligible, droppedByCeiling, droppedByPhase, droppedByBoth, groupCaps, fixtureClashes, breakdown };
 }
 
 export function droppedSummary(r: PipelineResult, window: MarketWindow): string {

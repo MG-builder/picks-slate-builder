@@ -46,18 +46,19 @@ export function seedConfig(): Config {
 }
 
 /**
- * Brings data saved by earlier versions up to date: `pairCap` became `groupCap`,
- * mechanics gained `leagues`, and `secondEntityId` became `otherEntityIds`.
+ * Brings data saved by earlier versions up to date.
+ * Config saved before mechanics had slots (the player-markets rework) is replaced with the
+ * seed, because the old mechanics, entities and windows no longer apply.
+ * Slates saved with `secondEntityId` get `otherEntityIds`.
  */
 type Legacy<T> = T & Record<string, unknown>;
 
 function migrateConfig(c: Legacy<Config>): Config {
-  const rules = c.rules as Legacy<Config["rules"]>;
-  return {
-    ...c,
-    mechanics: c.mechanics.map((m) => ({ ...m, leagues: m.leagues ?? [] })),
-    rules: { ...rules, groupCap: rules.groupCap ?? (rules.pairCap as number | undefined) ?? 10 },
-  };
+  const current =
+    c.mechanics.every((m) => Array.isArray(m.slots)) &&
+    c.entities.every((e) => Array.isArray(e.tags)) &&
+    c.windows.every((w) => Array.isArray(w.fixtures));
+  return current ? c : seedConfig();
 }
 
 function migrateSlate(s: Slate): Slate {

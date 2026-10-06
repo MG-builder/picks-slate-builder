@@ -32,10 +32,14 @@ export function entitiesLabel(lk: Lookup, m: SlateMarket): string {
 export function question(lk: Lookup, m: SlateMarket): string {
   const mech = lk.mechanic(m.mechanicId);
   if (!mech) return missing(m.mechanicId);
+  const names = [m.entityId, ...m.otherEntityIds].map((id) => entityName(lk, id));
+  const all = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
   return mech.questionShape
-    .replaceAll("{a}", entityName(lk, m.entityId))
-    .replaceAll("{b}", entityName(lk, m.otherEntityIds[0] ?? null))
-    .replaceAll("{c}", entityName(lk, m.otherEntityIds[1] ?? null))
+    .replaceAll("{all}", all)
+    .replaceAll("{a}", names[0] ?? "")
+    .replaceAll("{b}", names[1] ?? "")
+    .replaceAll("{c}", names[2] ?? "")
+    .replaceAll("{d}", names[3] ?? "")
     .replaceAll("{line}", m.line == null ? "" : String(m.line))
     .replaceAll("{window}", lk.window(m.windowId)?.label ?? missing(m.windowId));
 }

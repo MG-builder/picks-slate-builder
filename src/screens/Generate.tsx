@@ -17,6 +17,7 @@ export default function GenerateScreen(props: { config: Config; onGenerate: (s: 
   }
 
   const eligible = result.eligible.length;
+  const clashes = new Map(result.fixtureClashes.map((f) => [f.mechanicId, f.dropped]));
   const over = eligible - config.rules.slateSize;
 
   return (
@@ -46,7 +47,7 @@ export default function GenerateScreen(props: { config: Config; onGenerate: (s: 
         </button>
       </div>
       <p className="muted">
-        {win.kind}, {win.roundIds.length} rounds ({win.roundIds.slice(0, 4).join(", ")}
+        {win.kind}, {win.roundIds.length} {win.roundIds.length === 1 ? "round" : "rounds"}, {win.fixtures.length} fixtures ({win.roundIds.slice(0, 4).join(", ")}
         {win.roundIds.length > 4 ? ", ..." : ""}), opens {fmtDateTime(win.opensAt, true)}, closes{" "}
         {fmtDateTime(win.closesAt, true)}
       </p>
@@ -78,11 +79,18 @@ export default function GenerateScreen(props: { config: Config; onGenerate: (s: 
       {eligible === 0 && <p className="error">No candidates survive the filter for this window.</p>}
 
       <h3>By mechanic</h3>
+      <p className="muted">
+        Fixture clashes are groups never generated because their teams play each other in this window. They are not
+        counted in Candidates.
+      </p>
       <table className="grid">
         <thead>
           <tr>
             <th>Mechanic</th><th>Phase</th><th>Ceiling</th><th className="num">Candidates</th>
             <th className="num">Kept</th><th>Reason dropped</th>
+            <th className="num" title="Groups never generated because the teams play each other in this window">
+              Fixture clashes
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -100,6 +108,7 @@ export default function GenerateScreen(props: { config: Config; onGenerate: (s: 
                 <td className="num">{b.candidates}</td>
                 <td className="num">{reasons.length ? 0 : b.candidates}</td>
                 <td>{reasons.join("; ")}</td>
+                <td className="num">{clashes.get(b.mechanicId) ?? ""}</td>
               </tr>
             );
           })}

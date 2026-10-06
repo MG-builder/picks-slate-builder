@@ -1,6 +1,6 @@
 import { useState } from "react";
-import type { Config, Entity, EntityCount, EntityType, Mechanic, MarketWindow, Phase, WindowKind } from "../types";
-import { ENTITY_COUNTS, ENTITY_TYPES, PHASES, WINDOW_KINDS } from "../types";
+import type { Config, Entity, EntityType, GroupRule, Mechanic, MarketWindow, Phase, WindowKind } from "../types";
+import { ANY_TAG, ENTITY_TYPES, GROUP_RULES, PHASES, WINDOW_KINDS } from "../types";
 import { seedConfig } from "../lib/storage";
 import { CommitInput, joinList, splitList, splitNumbers } from "../components/inputs";
 
@@ -63,7 +63,7 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
             <table className="grid edit">
               <thead>
                 <tr>
-                  <th>ID</th><th>Name</th><th>Question shape</th><th>Entity types</th><th>Entities</th><th>Leagues</th>
+                  <th>ID</th><th>Name</th><th>Question shape</th><th>Entity types</th><th>Slots</th><th>Group rule</th><th>Leagues</th>
                   <th>Source market</th><th>Ceiling</th><th>Tie rule</th><th>Phase</th><th>Lines</th>
                   <th>Metric</th><th>Operator</th><th />
                 </tr>
@@ -76,7 +76,7 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
                       <td className="mono muted">{m.id}</td>
                       <td><input value={m.name} onChange={(e) => set({ name: e.target.value })} /></td>
                       <td>
-                        <input className="wide" value={m.questionShape} title="Placeholders: {a} {b} {c} {line} {window}"
+                        <input className="wide" value={m.questionShape} title="Placeholders: {a} {b} {c} {d} (one per slot), {all}, {line}, {window}"
                           onChange={(e) => set({ questionShape: e.target.value })} />
                       </td>
                       <td className="nowrap">
@@ -98,10 +98,17 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
                         ))}
                       </td>
                       <td>
-                        <select value={m.entityCount} onChange={(e) => set({ entityCount: Number(e.target.value) as EntityCount })}>
-                          {ENTITY_COUNTS.map((n) => (
-                            <option key={n} value={n}>{n === 1 ? "1" : n === 2 ? "2 (pair)" : `${n} (group)`}</option>
-                          ))}
+                        <CommitInput value={joinList(m.slots)}
+                          title={`One entity tag per entity in the market, e.g. scorer, assister. ${ANY_TAG} means any entity.`}
+                          onCommit={(t) => {
+                            const slots = splitList(t);
+                            if (slots.length) set({ slots });
+                          }} />
+                      </td>
+                      <td>
+                        <select value={m.groupRule} disabled={m.slots.length < 2}
+                          onChange={(e) => set({ groupRule: e.target.value as GroupRule })}>
+                          {GROUP_RULES.map((r) => <option key={r} value={r}>{r}</option>)}
                         </select>
                       </td>
                       <td>
@@ -144,7 +151,7 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
                 ...config.mechanics,
                 {
                   id: newId("mech"), name: "New mechanic", questionShape: "", allowedEntityTypes: [],
-                  entityCount: 1, leagues: [], sourceMarket: "", windowCeiling: WINDOW_KINDS[0], tieRule: "",
+                  slots: [ANY_TAG], groupRule: GROUP_RULES[0], leagues: [], sourceMarket: "", windowCeiling: WINDOW_KINDS[0], tieRule: "",
                   phase: PHASES[0], lines: [], metric: "", operator: "",
                 },
               ])
@@ -161,8 +168,8 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
             <table className="grid edit">
               <thead>
                 <tr>
-                  <th>ID</th><th>Name</th><th>Type</th><th>League</th><th>Feed ID</th>
-                  <th>Country relevance</th><th>Eligible</th><th />
+                  <th>ID</th><th>Name</th><th>Type</th><th>League</th><th>Team</th><th>Feed ID</th>
+                  <th>Country relevance</th><th>Tags</th><th>Eligible</th><th />
                 </tr>
               </thead>
               <tbody>
@@ -178,10 +185,16 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
                         </select>
                       </td>
                       <td><input value={e.league} onChange={(ev) => set({ league: ev.target.value })} /></td>
+                      <td><input value={e.team} onChange={(ev) => set({ team: ev.target.value })} /></td>
                       <td><input className="mono" value={e.feedId} onChange={(ev) => set({ feedId: ev.target.value })} /></td>
                       <td>
                         <CommitInput value={joinList(e.countryRelevance)} placeholder="e.g. Nigeria, Ghana"
                           onCommit={(t) => set({ countryRelevance: splitList(t) })} />
+                      </td>
+                      <td>
+                        <CommitInput value={joinList(e.tags)} placeholder="no pool"
+                          title="Pools this entity is in, matched against mechanic slots"
+                          onCommit={(t) => set({ tags: splitList(t) })} />
                       </td>
                       <td className="center">
                         <input type="checkbox" checked={e.eligible} onChange={(ev) => set({ eligible: ev.target.checked })} />
@@ -200,7 +213,7 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
             onClick={() =>
               setEntities([
                 ...config.entities,
-                { id: newId("ent"), name: "New entity", type: ENTITY_TYPES[0], league: "", feedId: "", countryRelevance: [], eligible: true },
+                { id: newId("ent"), name: "New entity", type: ENTITY_TYPES[0], league: "", team: "", feedId: "", countryRelevance: [], tags: [], eligible: true },
               ])
             }
           >
@@ -215,7 +228,7 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
             <table className="grid edit">
               <thead>
                 <tr>
-                  <th>ID</th><th>Label</th><th>Kind</th><th>Round IDs</th><th>Opens (UTC)</th><th>Closes (UTC)</th><th />
+                  <th>ID</th><th>Label</th><th>Kind</th><th>Round IDs</th><th>Fixtures</th><th>Opens (UTC)</th><th>Closes (UTC)</th><th />
                 </tr>
               </thead>
               <tbody>
@@ -233,6 +246,11 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
                       <td>
                         <CommitInput className="wide" value={joinList(w.roundIds)} title={joinList(w.roundIds)}
                           onCommit={(t) => set({ roundIds: splitList(t) })} />
+                      </td>
+                      <td>
+                        <CommitInput className="wide" value={joinList(w.fixtures)} placeholder="Home v Away, ..."
+                          title={w.fixtures.join("\n")}
+                          onCommit={(t) => set({ fixtures: splitList(t) })} />
                       </td>
                       <td>
                         <input type="datetime-local" value={toLocalInput(w.opensAt)}
@@ -256,7 +274,7 @@ export default function ConfigScreen(props: { config: Config; onChange: (c: Conf
             onClick={() =>
               setWindows([
                 ...config.windows,
-                { id: newId("win"), label: "New window", kind: WINDOW_KINDS[0], roundIds: [], opensAt: "", closesAt: "" },
+                { id: newId("win"), label: "New window", kind: WINDOW_KINDS[0], roundIds: [], fixtures: [], opensAt: "", closesAt: "" },
               ])
             }
           >
