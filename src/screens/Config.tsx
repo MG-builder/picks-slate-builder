@@ -125,7 +125,7 @@ export default function ConfigScreen(props: {
                   <th title="Ticked mechanics are generated">Use</th>
                   <th title="Markets of this mechanic on the slate; the rest become reserves">Count</th>
                   <th>ID</th><th>Name</th><th>Question shape</th><th>Entity types</th><th>Slots</th><th>Group rule</th><th>Leagues</th>
-                  <th>Source market</th><th>Ceiling</th><th>Tie rule</th><th>Lines</th>
+                  <th>Source market</th><th title="Narrowest window it can fill">Min window</th><th title="Widest window it can fill">Max window</th><th>Tie rule</th><th>Lines</th>
                   <th>Metric</th><th>Operator</th><th />
                 </tr>
               </thead>
@@ -190,6 +190,11 @@ export default function ConfigScreen(props: {
                       </td>
                       <td><input value={m.sourceMarket} onChange={(e) => set({ sourceMarket: e.target.value })} /></td>
                       <td>
+                        <select value={m.windowFloor} onChange={(e) => set({ windowFloor: e.target.value as WindowKind })}>
+                          {WINDOW_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+                        </select>
+                      </td>
+                      <td>
                         <select value={m.windowCeiling} onChange={(e) => set({ windowCeiling: e.target.value as WindowKind })}>
                           {WINDOW_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
                         </select>
@@ -218,7 +223,7 @@ export default function ConfigScreen(props: {
                 ...config.mechanics,
                 {
                   id: newId("mech"), name: "New mechanic", questionShape: "", allowedEntityTypes: [],
-                  slots: [ANY_TAG], groupRule: GROUP_RULES[0], leagues: [], sourceMarket: "", windowCeiling: WINDOW_KINDS[0], tieRule: "",
+                  slots: [ANY_TAG], groupRule: GROUP_RULES[0], leagues: [], sourceMarket: "", windowFloor: WINDOW_KINDS[0], windowCeiling: WINDOW_KINDS[0], tieRule: "",
                   enabled: false, count: 1, lines: [], metric: "", operator: "",
                 },
               ])

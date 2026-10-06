@@ -33,9 +33,11 @@ export function question(lk: Lookup, m: SlateMarket): string {
   const mech = lk.mechanic(m.mechanicId);
   if (!mech) return missing(m.mechanicId);
   const names = [m.entityId, ...m.otherEntityIds].map((id) => entityName(lk, id));
-  const all = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
+  const list = (word: string) =>
+    names.length > 1 ? `${names.slice(0, -1).join(", ")} ${word} ${names[names.length - 1]}` : names[0];
   return mech.questionShape
-    .replaceAll("{all}", all)
+    .replaceAll("{all}", list("and"))
+    .replaceAll("{any}", list("or"))
     .replaceAll("{a}", names[0] ?? "")
     .replaceAll("{b}", names[1] ?? "")
     .replaceAll("{c}", names[2] ?? "")

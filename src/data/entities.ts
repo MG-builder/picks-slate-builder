@@ -11,6 +11,7 @@ export const EPL = "Premier League";
  * - scorer: big-name goalscorers
  * - assister: big-name creators
  * - ga: goal or assist pool
+ * - club: teams, for markets that pair a player with their club
  * Untagged players are kept in config so they can be promoted by adding a tag.
  */
 const player = (
@@ -56,4 +57,23 @@ export const seedEntities: Entity[] = [
   player("pl-wilson", "Harry Wilson", "Leeds United", []),
   player("pl-neto", "Pedro Neto", "Chelsea", []),
   player("pl-trossard", "Leandro Trossard", "Arsenal", []),
+
+  // Clubs of the tier 1 scorers, for "score and team win"
+  ...[
+    ["tm-mancity", "Manchester City"],
+    ["tm-manutd", "Manchester United"],
+    ["tm-chelsea", "Chelsea"],
+    ["tm-arsenal", "Arsenal"],
+    ["tm-liverpool", "Liverpool"],
+  ].map(([id, name]): Entity => ({
+    id,
+    name,
+    type: "team",
+    league: EPL,
+    team: name,
+    feedId: `SR:team:${id.replace("tm-", "")}`,
+    countryRelevance: ["all"],
+    tags: ["club"],
+    eligible: true,
+  })),
 ];

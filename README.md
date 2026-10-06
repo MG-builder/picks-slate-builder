@@ -66,6 +66,7 @@ position:
 | `scorer` | Haaland, Bruno Fernandes, Semenyo, Joao Pedro, Gyokeres, Isak |
 | `assister` | Bruno Fernandes, Cherki, Haaland, Szoboszlai, Rogers, Odegaard |
 | `ga` (goal or assist) | Haaland, Bruno Fernandes, Semenyo, Joao Pedro, Cherki, Gyokeres, Isak, Rogers |
+| `club` | Man City, Man Utd, Chelsea, Arsenal, Liverpool (team entities) |
 
 Other players are in config without tags; add a tag to bring them into a pool.
 
@@ -77,11 +78,21 @@ Other players are in config without tags; add a tag to bring them into a pool.
 | No | A scores, B assists (same team) | 2 | scorer, assister | same-team |
 | No | B assists A's goal (same team) | 2 | scorer, assister | same-team |
 | No | Both to assist; all four to score | 2 / 1 | | |
+| No | Any of three to score | 1 | scorer x3 | different-teams |
+| No | Combined goals ladder (pair), lines 2, 3 | 2 | scorer x2 | different-teams |
+| No | Strikers' combined goals ladder (four), lines 3, 4, 5 | 1 | scorer x4 | different-teams |
+| No | Score in both gameweeks (fortnight windows only) | 2 | scorer | |
+| No | Duo goal involvements ladder, lines 2, 3 | 2 | ga x2 | same-team |
+| No | Score and team win | 2 | scorer, club | same-team |
+| No | Who scores more (level settles No) | 2 | scorer x2 | different-teams |
+| No | Both players to score 2+ | 1 | scorer x2 | different-teams |
 
 "A scores, B assists" is same-team only: an assist is always on a teammate's goal, so a
 cross-match version is not a valid market and was removed. The first version settles on A
 scoring and B assisting in the match; the second needs goal-by-goal data to check the assist
 was on A's goal.
+
+Question shapes can use `{any}` ("A, B or C") as well as `{all}` ("A, B and C").
 
 Which mechanics run when is a product decision for the PRDs, so the app has no phases: a
 mechanic is either ticked or not.
@@ -108,8 +119,8 @@ Two steps, deliberately nothing more:
    `groupCap` per mechanic (slate plus reserves), in config order, so entity order sets
    priority. Generate reports
    both the groups left out by the fixture check and any cut by the cap.
-2. **Eligibility filter**: drop a candidate if the mechanic's window ceiling cannot cover the
-   selected window (gameweek < fortnight < season), or if the mechanic is unticked.
+2. **Eligibility filter**: drop a candidate if the selected window is outside the mechanic's
+   min and max window (gameweek < fortnight < season), or if the mechanic is unticked.
 
 Then the slate is chosen, in config order: each ticked mechanic gets up to its `count` until
 `slateSize` (Markets on slate) is reached. If the counts add up to less than `slateSize`, the
@@ -130,6 +141,10 @@ or in reserves, up to the max candidates per mechanic (`groupCap`).
 - `Mechanic.slots`: one entity tag per entity in the market, replacing a plain entity count.
 - `Mechanic.groupRule`: how the entities in a multi-entity market relate (see above).
 - `Mechanic.leagues`: optional league restriction. Empty means any league.
+- `Mechanic.windowFloor`: the narrowest window a mechanic fills (the brief only had a ceiling),
+  so "score in both gameweeks" only fills fortnight windows.
+- `Config.revision`: new seed mechanics and entities are added to a saved config once, when it
+  is below their revision. Anything deleted afterwards stays deleted.
 - `Entity.team` and `Entity.tags`: club, and the pools the entity belongs to.
 - `MarketWindow.fixtures`: "Home v Away" strings for the window, using entity team names.
 - `SlateMarket.otherEntityIds`: entities in the second and later slots. `entityId` is still

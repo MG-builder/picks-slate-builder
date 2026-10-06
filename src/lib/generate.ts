@@ -24,7 +24,8 @@ export interface MechanicBreakdown {
   mechanicId: string;
   /** Candidates built for this mechanic and window, before the filter. */
   candidates: number;
-  ceilingOk: boolean;
+  /** The window's kind is between the mechanic's floor and ceiling. */
+  windowOk: boolean;
   enabled: boolean;
   /** Markets that go on the slate: the first `count` that pass the filter. */
   onSlate: number;
@@ -40,7 +41,7 @@ export interface PipelineResult {
   candidates: Candidate[];
   /** Candidates that pass the filter, each marked as on the slate or a reserve. */
   selected: SelectedCandidate[];
-  droppedByCeiling: number;
+  droppedByWindow: number;
   droppedByDisabled: number;
   groupCaps: GroupCapNote[];
   fixtureClashes: FixtureClashNote[];
@@ -49,6 +50,11 @@ export interface PipelineResult {
 
 export function ceilingCovers(ceiling: WindowKind, kind: WindowKind): boolean {
   return WINDOW_KINDS.indexOf(ceiling) >= WINDOW_KINDS.indexOf(kind);
+}
+
+/** The window kind is between the mechanic's floor and ceiling, inclusive. */
+export function windowFits(m: Pick<Mechanic, "windowFloor" | "windowCeiling">, kind: WindowKind): boolean {
+  return ceilingCovers(m.windowCeiling, kind) && ceilingCovers(kind, m.windowFloor);
 }
 
 const hasTag = (e: Entity, tag: string) => tag === ANY_TAG || e.tags.includes(tag);
@@ -161,7 +167,7 @@ export function buildCandidates(
 }
 
 /**
- * Step 1, then step 2 (eligibility filter: window ceiling and the mechanic's tick box),
+ * Step 1, then step 2 (eligibility filter: window floor and ceiling, and the mechanic's tick box),
  * then the slate is chosen, in config order:
  * 1. each ticked mechanic gets up to its `count`, until the slate size is reached;
  * 2. if there is still room, the slate is topped up one market at a time from each ticked
@@ -174,11 +180,11 @@ export function runPipeline(config: Config, window: MarketWindow): PipelineResul
   const target = Math.max(0, config.rules.slateSize);
 
   const passed: Candidate[] = [];
-  let droppedByCeiling = 0;
+  let droppedByWindow = 0;
   let droppedByDisabled = 0;
   for (const c of candidates) {
     const m = mechanics.get(c.mechanicId)!;
-    if (!ceilingCovers(m.windowCeiling, window.kind)) droppedByCeiling++;
+    if (!windowFits(m, window.kind)) droppedByWindow++;
     else if (!m.enabled) droppedByDisabled++;
     else passed.push(c);
   }
@@ -211,14 +217,14 @@ export function runPipeline(config: Config, window: MarketWindow): PipelineResul
     return {
       mechanicId: m.id,
       candidates: candidates.filter((c) => c.mechanicId === m.id).length,
-      ceilingOk: ceilingCovers(m.windowCeiling, window.kind),
+      windowOk: windowFits(m, window.kind),
       enabled: m.enabled,
       onSlate: mine.filter((c) => c.onSlate).length,
       reserves: mine.filter((c) => !c.onSlate).length,
     };
   });
 
-  return { candidates, selected, droppedByCeiling, droppedByDisabled, groupCaps, fixtureClashes, breakdown };
+  return { candidates, selected, droppedByWindow, droppedByDisabled, groupCaps, fixtureClashes, breakdown };
 }
 
 export const slateSize = (r: PipelineResult) => r.selected.filter((c) => c.onSlate).length;

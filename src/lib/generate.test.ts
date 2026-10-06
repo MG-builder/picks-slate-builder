@@ -75,6 +75,54 @@ describe("A scores, B assists (same team)", () => {
   });
 });
 
+describe("mechanics added after the combo review (unticked)", () => {
+  const count = (c: Config, windowId: string, id: string) =>
+    buildCandidates(c, win(c, windowId)).candidates.filter((x) => x.mechanicId === id).length;
+
+  it("builds the expected number of candidates for gameweek 6", () => {
+    const c = cfg();
+    expect(count(c, "win-gw6", "mech-any-of-three-score")).toBe(10);
+    expect(count(c, "win-gw6", "mech-pair-combined-goals")).toBe(24); // 12 pairs x 2 lines
+    // Four scorers on different teams, no Isak with a City player: Isak, Bruno, Joao Pedro,
+    // Gyokeres; or Haaland or Semenyo with Bruno, Joao Pedro, Gyokeres. 3 groups x 3 lines.
+    expect(count(c, "win-gw6", "mech-strikers-combined-goals")).toBe(9);
+    expect(count(c, "win-gw6", "mech-duo-involvements")).toBe(8); // City 3 pairs + Chelsea 1, x 2 lines
+    expect(count(c, "win-gw6", "mech-score-and-team-win")).toBe(6);
+    expect(count(c, "win-gw6", "mech-outscore")).toBe(12);
+    expect(count(c, "win-gw6", "mech-both-score-twice")).toBe(12);
+  });
+
+  it("pairs each scorer with their own club for score and team win", () => {
+    const c = cfg();
+    const pairs = groupsFor(c, "win-gw6", "mech-score-and-team-win").map((g) => names(c, g).join(" + "));
+    expect(pairs).toContain("Erling Haaland + Manchester City");
+    expect(pairs).toContain("Bruno Fernandes + Manchester United");
+    expect(pairs.every((p) => !p.includes("Manchester City") || /Haaland|Semenyo/.test(p))).toBe(true);
+  });
+
+  it("only fills fortnight windows with score in both gameweeks", () => {
+    const c = cfg();
+    c.mechanics.forEach((m) => (m.enabled = m.id === "mech-score-both-gameweeks"));
+    c.rules.slateSize = 10;
+    expect(slateSize(runPipeline(c, win(c, "win-gw6")))).toBe(0);
+    expect(slateSize(runPipeline(c, win(c, "win-fn-6-7")))).toBe(6);
+  });
+
+  it("writes 'or' for {any}", () => {
+    const q = question(makeLookup(cfg()), {
+      id: "m", mechanicId: "mech-any-of-three-score", entityId: "pl-haaland", otherEntityIds: ["pl-bruno", "pl-gyokeres"],
+      line: null, windowId: "win-gw6", status: "pending", yesPrice: null, noPrice: null, approver: null, decidedAt: null,
+      onSlate: true,
+    });
+    expect(q).toBe("Will Erling Haaland, Bruno Fernandes or Viktor Gy\u00f6keres score in Gameweek 6?");
+  });
+
+  it("leaves every new mechanic unticked, so the default slate is unchanged", () => {
+    const c = cfg();
+    expect(c.mechanics.filter((m) => m.enabled).map((m) => m.id)).toEqual(["mech-both-score", "mech-all-three-score"]);
+  });
+});
+
 describe("pools", () => {
   it("never uses untagged players", () => {
     const c = cfg();
@@ -160,7 +208,9 @@ describe("runPipeline", () => {
     const c = cfg();
     const r = runPipeline(c, win(c, "win-fn-6-7"));
     expect(r.selected).toHaveLength(0);
-    expect(r.droppedByCeiling).toBe(r.candidates.length);
+    // Only "score in both gameweeks" fits a fortnight, and it is unticked.
+    expect(r.droppedByDisabled).toBe(6);
+    expect(r.droppedByWindow).toBe(r.candidates.length - 6);
   });
 
   it("marks slate and reserve markets on the created slate", () => {
@@ -184,6 +234,34 @@ describe("question text", () => {
 });
 
 describe("storage migration", () => {
+  it("adds this revision's mechanics and clubs to a saved config once", () => {
+    const store = new Map<string, string>();
+    globalThis.localStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    } as Storage;
+    // A config saved before revision 2: no revision, no new mechanics, a user-added entity.
+    const saved = cfg() as unknown as Record<string, any>;
+    delete saved.revision;
+    saved.mechanics = saved.mechanics.slice(0, 7).map(({ windowFloor: _f, ...m }: Record<string, unknown>) => m);
+    saved.entities = [...saved.entities.filter((e: any) => e.type === "player"), { ...saved.entities[0], id: "ent-mine", name: "Mine" }];
+    store.set("psb.v1.config", JSON.stringify(saved));
+
+    const c = loadConfig();
+    expect(c.revision).toBe(2);
+    expect(c.mechanics.map((m) => m.id)).toContain("mech-score-and-team-win");
+    expect(c.entities.map((e) => e.id)).toEqual(expect.arrayContaining(["ent-mine", "tm-mancity"]));
+    expect(c.mechanics.every((m) => m.windowFloor)).toBe(true);
+    const added = c.mechanics.filter((m) => !saved.mechanics.some((x: any) => x.id === m.id));
+    expect(added.every((m) => !m.enabled)).toBe(true);
+
+    // Deleting one afterwards sticks, because the config is now at revision 2.
+    c.mechanics = c.mechanics.filter((m) => m.id !== "mech-outscore");
+    store.set("psb.v1.config", JSON.stringify(c));
+    expect(loadConfig().mechanics.map((m) => m.id)).not.toContain("mech-outscore");
+  });
+
   it("removes the retired cross-match A scores, B assists mechanic", () => {
     const store = new Map<string, string>();
     globalThis.localStorage = {

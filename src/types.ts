@@ -21,7 +21,7 @@ export const ANY_TAG = "*";
 export interface Mechanic {
   id: string;
   name: string;
-  /** Uses {a} to {d} (one per slot), {all}, {line} and {window} placeholders. */
+  /** Uses {a} to {d} (one per slot), {all} ("A, B and C"), {any} ("A, B or C"), {line} and {window}. */
   questionShape: string;
   allowedEntityTypes: EntityType[];
   /**
@@ -34,6 +34,9 @@ export interface Mechanic {
   /** Restricts candidates to entities in these leagues. Empty means any league. */
   leagues: string[];
   sourceMarket: string;
+  /** Narrowest window this mechanic can fill, e.g. fortnight for "score in both gameweeks". */
+  windowFloor: WindowKind;
+  /** Widest window this mechanic can fill. */
   windowCeiling: WindowKind;
   tieRule: string;
   /** Ticked mechanics are generated; unticked ones are kept in config but skipped. */
@@ -82,6 +85,8 @@ export interface RuleConfig {
 }
 
 export interface Config {
+  /** Seed revision this config has been brought up to; see storage migration. */
+  revision: number;
   mechanics: Mechanic[];
   entities: Entity[];
   windows: MarketWindow[];

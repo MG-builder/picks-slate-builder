@@ -10,7 +10,10 @@ export function notGeneratedReason(
 ): string | null {
   const m = config.mechanics.find((x) => x.id === b.mechanicId)!;
   if (!b.enabled) return "unticked";
-  if (!b.ceilingOk) return `${m.windowCeiling} mechanic cannot fill a ${window.kind} window`;
+  if (!b.windowOk) {
+    const range = m.windowFloor === m.windowCeiling ? `${m.windowFloor} windows only` : `${m.windowFloor} to ${m.windowCeiling} windows`;
+    return `fills ${range}, not ${window.kind}`;
+  }
   if (b.candidates === 0) return "no players fit its slots and group rule";
   return null;
 }
